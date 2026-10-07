@@ -1,8 +1,9 @@
 Market Under Stress — Design Document
 
-Version: 0.4 (supersedes v0.2)
+Version: 0.4.1 (supersedes v0.2)
 
-Changelog: 0.4: framing (pinball machine, stocks, days, the crowd), player vocabulary that hides model symbols, Chapter 1 rewritten with guided intro, live captions and visible Herd; legibility principle; P0.5 milestone inserted, P0 done.
+Changelog: 0.4.1: the ρ control is called Yesterday for players (Herd stays the internal name); "stocks" used consistently in player text; mood captions say "overall".
+0.4: framing (pinball machine, stocks, days, the crowd), player vocabulary that hides model symbols, Chapter 1 rewritten with guided intro, live captions and visible Herd; legibility principle; P0.5 milestone inserted, P0 done.
 0.3.1: drift and inertia re-parameterized to be independent (stationary π + ρ); ghost/luck baseline defined as same π, ρ = 0; P0 board decisions recorded; deploy base path set to the repo name.
 
 Status: Pre-production. P0 done: tested shared model (src/model/) and a rough, playable Chapter 1 with dev-panel controls. P0.5 (legibility pass) in progress. Working title: Market Under Stress (subject to change)
@@ -28,7 +29,7 @@ Light comes from data. Color and glow carry meaning. If something glows, it is b
 The market is a pinball machine. Each ball is a stock. Each row of pegs is a day. What pushes the ball left or right is the crowd, and the crowd can panic, get excited, and chase whatever just happened. Can you see through the machine?
 
 Rules:
-The framing must stay true to the model. Balls never interact. Herd means the crowd reacts to this ball's own previous move; never describe it as balls copying each other.
+The framing must stay true to the model. Balls never interact. Yesterday (internally: Herd) means the crowd reacts to this stock's own previous move; never describe it as balls copying each other.
 No characters, no plot. Only this premise and a consistent vocabulary.
 Chapter 3's player role is the gambler: design a betting rule, then find out whether you saw through the machine or just got lucky.
 
@@ -37,13 +38,15 @@ Chapter 3's player role is the gambler: design a betting rule, then find out whe
 Player-facing text never shows model symbols. All player-facing strings live in one copy file (src/content/copy.ts), structured so a second language can be added.
 
 Model	Player sees	Control ends
-ρ	Herd	"Turns against it" ← "Ignores it" → "Chases it" (yesterday's move)
+ρ	Yesterday ("How the crowd reacts to yesterday's move"; internal name Herd)	"Turns against it" ← "Ignores it" → "Chases it"
 tilt / π	Mood	"Panic" ← "Calm" → "Optimism"
 σ	hidden in Chapter 1	—
 n	Days	each row is one trading day
 ball	a stock	
 bin	where the stock ends up after N days (% gain/loss)	
 ρ = 0 overlay	"If the crowd ignored yesterday"	
+
+Player text always says "stock", never "ball"; "ball" appears only in code and the debug overlay. Captions describe the pile overall ("pushing stocks up overall"), never every stock.
 
 Numbers are replaced by short interpretive captions. Exact readouts (ρ, VR, measured vs. theory) remain available in a hidden debug overlay.
 2. Experience Overview
@@ -119,26 +122,26 @@ This is a real statistical test used in quant research, and it is what Chapter 2
 
 4. Chapter 1 — The Board
 
-Role: The player builds the market: sets the crowd's Mood and Herd, then watches stocks fall through the days.
+Role: The player builds the market: sets the crowd's Mood and how it reacts to Yesterday, then watches stocks fall through the days.
 
 In this chapter (vocabulary from §1.2): a ball is a stock, a row of pegs is one trading day, a bin is where the stock ends up after N days, labeled as % gain/loss. The outline over the bins is "If the crowd ignored yesterday".
 
 Interaction
 Drop stocks: click/hold (or hold Space) to release balls; each ball is one stock's path over N days.
 Mood (tilt): "Panic" ← "Calm" → "Optimism". Keyboard ←/→.
-Herd (ρ): "Turns against it" ← "Ignores it" → "Chases it". Keyboard ↑/↓. The core control of the chapter.
+Yesterday (ρ, internally Herd): "Turns against it" ← "Ignores it" → "Chases it". Keyboard ↑/↓. The core control of the chapter.
 Days (n): one row per trading day.
 σ and seed are not player controls. σ is fixed in Chapter 1 and only scales the % labels; seed lives in the debug overlay.
 Inspect a stock: click a landed ball; its days unroll into a price line beside the board, labeled in plain words ("This stock's 12 days", start price, end price, % change).
 Debug overlay: the D key toggles the exact readout table and the dev panel (all model parameters, measured vs. theory). Hidden by default.
 
 Guided intro (skippable, replayable; each step is one or two short lines)
-1. Premise. Mood and Herd are locked at neutral. "Drop some balls." The bell shape forms; the caption explains it.
+1. Premise. Mood and Yesterday are locked at neutral. "Drop some stocks." The bell shape forms; the caption explains it.
 2. Mood unlocks. Moving it shifts everything.
-3. Herd unlocks. The "If the crowd ignored yesterday" outline stays fixed while the pile pulls away from it. The caption names the gap between pile and outline as the crowd's behavior.
+3. Yesterday unlocks. The "If the crowd ignored yesterday" outline stays fixed while the pile pulls away from it. The caption names the gap between pile and outline as the crowd's behavior.
 4. Free play.
 
-Making Herd visible
+Making Yesterday (Herd) visible
 While falling, each ball carries its previous move: its color is the direction of its last move (warm = up, cool = down) and a short trail keeps that color across steps. With "Chases it", balls hold one color through long runs; with "Turns against it", they flicker. This is the ball's own history, never other balls.
 
 Live captions
@@ -155,7 +158,7 @@ Moving right = up-step (+1). A ball's horizontal position is its running count o
 Ball k released is path k of the precomputed batch in app state, so the board reveals the stored batch in order rather than drawing new randomness.
 
 What the player should see
-Herd "Ignores it" (ρ = 0): bins fill into a bell that matches the outline, Binomial(n, π) with the same Mood.
+Yesterday "Ignores it" (ρ = 0): bins fill into a bell that matches the outline, Binomial(n, π) with the same Mood.
 "Chases it" (ρ > 0): stocks commit to a direction and run; the pile is wider and flatter than the outline.
 "Turns against it" (ρ < 0): stocks zig-zag and pile up in the middle.
 Mood moves the outline and the pile together.
@@ -302,14 +305,14 @@ Chapter 1 rough: instanced pegs and balls, scripted arcs, bin histogram with ana
 Debug readout: measured autocorrelation and VR
 P0.5 — Legibility pass
 
-Goal: a first-time player can say what Mood and Herd do without seeing a number. The model does not change.
+Goal: a first-time player can say what Mood and Yesterday do without seeing a number. The model does not change.
 
 Copy layer: all player-facing strings in src/content/copy.ts
-Player controls: Mood and Herd with end labels (no numbers), Days; σ and seed removed from player controls
+Player controls: Mood and Yesterday with end labels (no numbers), Days; σ and seed removed from player controls
 Debug overlay: readout table + dev panel, hidden by default, toggled with D
 Live captions from measured stats vs. the "ignored yesterday" baseline, as a tested pure function
-Guided intro: premise → Mood → Herd → free play; skippable and replayable
-Herd visible on falling balls (color + short trail of the previous move)
+Guided intro: premise → Mood → Yesterday → free play; skippable and replayable
+Yesterday (Herd) visible on falling stocks (color + short trail of the previous move)
 Inspected ball in plain words
 P1 — The Terrain
 Density surface from batch, ghost ρ = 0 reference, VR readout, time-slice scrub, live morph on parameter change
