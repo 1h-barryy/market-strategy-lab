@@ -8,7 +8,7 @@ import { binomialPmf, lag1Autocorrelation, mean, variance, varianceRatio, varian
 import type { HudAction, ReadoutRow } from '../../ui/HUD';
 import type { Chapter, ChapterContext } from '../types';
 import { Balls } from './balls';
-import { captionFor } from './captions';
+import { captionFor } from '../../model/evidence';
 import { CrowdControls } from '../../ui/CrowdControls';
 import { fitDistance, type CameraPose } from '../../world/shared/stage';
 import { BOARD_LIMITS, DevPanel, type Playback } from './devPanel';
@@ -133,6 +133,7 @@ export class BoardChapter implements Chapter {
     stage.rig.follow(boardPose, this.firstEnter ? 0 : TRANSITION_SECONDS);
     this.firstEnter = false;
     this.priceLine!.group.visible = true;
+    this.overlay!.showLegend = true;
     const text = copy();
     hud.setHeader(text.header);
     hud.setLegend(text.legend.prefix, text.legend.up, text.legend.down);
@@ -179,6 +180,8 @@ export class BoardChapter implements Chapter {
     this.balls?.landAll();
     this.syncOverlay();
     this.select(-1);
+    this.overlay!.showLegend = false;
+    this.syncOverlay();
     this.priceLine!.group.visible = false;
     this.introRendered = '';
     this.unsubscribe.forEach((off) => off());
@@ -214,6 +217,8 @@ export class BoardChapter implements Chapter {
     this.overlay = new BinomialOverlay(this.mapping);
     this.overlay.setLabels(params.sigmaStep);
     this.priceLine = new PriceLine(this.mapping);
+    this.priceLine.group.visible = this.active;
+    this.overlay.showLegend = this.active;
     this.world.add(this.board, this.balls.group, this.overlay.group, this.priceLine.group);
     this.pmf = binomialPmf(params.n, 0.5 + params.tilt);
     this.batchSummary = summarize(this.view.paths);

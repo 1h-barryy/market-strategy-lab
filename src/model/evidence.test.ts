@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { finalVariance, generateBatch, type WorldParams } from '../../model/process';
-import { mean, variance } from '../../model/stats';
-import { CAPTION_RULES, captionFor, type CaptionStats } from './captions';
+import { finalVariance, generateBatch, type WorldParams } from './process';
+import { mean, variance } from './stats';
+import { CAPTION_RULES, captionFor, type CaptionStats } from './evidence';
 
 const base: CaptionStats = { landed: 100, mean: 0, sd: 3.46, baselineSd: 3.46 };
 

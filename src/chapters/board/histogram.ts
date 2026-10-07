@@ -41,6 +41,9 @@ export class BinomialOverlay {
     this.group.add(this.lines, this.labels);
   }
 
+  /** Whether the outline's text label shows (hidden while another chapter is active). */
+  showLegend = true;
+
   /** Expected counts per bin and the stack unit they are drawn with. */
   update(expected: readonly number[], unit: number): void {
     const m = this.mapping;
@@ -58,7 +61,7 @@ export class BinomialOverlay {
     this.lines.visible = expected.some((c) => c > 0);
     const peak = expected.indexOf(Math.max(...expected));
     this.legend.position.set(m.binX(peak) + m.dx * 0.5, m.countY(expected[peak], unit) + 0.35, 0.1);
-    this.legend.visible = this.lines.visible;
+    this.legend.visible = this.lines.visible && this.showLegend;
   }
 
   /** % price-change labels under the bins (at most ~7, always including the center). */

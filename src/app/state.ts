@@ -56,6 +56,8 @@ interface StoreEvents {
 /** Holds the current AppState and announces changes. */
 export class Store extends Emitter<StoreEvents> {
   private current: AppState;
+  /** Milliseconds the last batch regeneration took (debug overlay). */
+  lastRegenMs = 0;
 
   constructor(initial: AppState = createState()) {
     super();
@@ -67,7 +69,9 @@ export class Store extends Emitter<StoreEvents> {
   }
 
   setParams(changes: Partial<WorldParams>): void {
+    const started = performance.now();
     const next = withParams(this.current, changes);
+    if (next !== this.current) this.lastRegenMs = performance.now() - started;
     if (next === this.current) return;
     this.current = next;
     this.emit('batch', next);

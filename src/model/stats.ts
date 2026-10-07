@@ -235,3 +235,61 @@ export function ghostQuantile(t: number, p: number, q: number): number {
   }
   return t;
 }
+
+/**
+ * Position at quantile q on `day`, from a histogram (smallest position whose cumulative share
+ * reaches q). Mass off the map counts; a quantile that falls off the map returns ±(extent + 1).
+ */
+export function histogramQuantile(h: DayHistograms, day: number, q: number): number {
+  const target = q * h.total;
+  let cumulative = h.below[day];
+  if (cumulative >= target && cumulative > 0) return -h.extent - 1;
+  for (let i = 0; i < h.width; i++) {
+    cumulative += h.values[day * h.width + i];
+    if (cumulative >= target - 1e-9) return i - h.extent;
+  }
+  return h.extent + 1;
+}
+
+/**
+ * Smoothing along days with a Gaussian whose sd grows with the day (`fraction` × t days), so late
+ * days, where 2,000 stocks are spread thin, are averaged over a few neighbours while early days,
+ * which change fast, stay sharp. Each output row is a weighted average of rows, so a row of shares
+ * keeps summing to (almost exactly) its neighbours' common total.
+ */
+export function smoothAcrossDays(shares: Float64Array, days: number, width: number, fraction: number): Float64Array {
+  const out = new Float64Array(shares.length);
+  for (let t = 0; t <= days; t++) {
+    const sigma = fraction * t;
+    if (sigma < 0.5) {
+      out.set(shares.subarray(t * width, (t + 1) * width), t * width);
+      continue;
+    }
+    const radius = Math.ceil(3 * sigma);
+    let norm = 0;
+    for (let s = Math.max(0, t - radius); s <= Math.min(days, t + radius); s++) {
+      const w = Math.exp(-0.5 * ((s - t) / sigma) ** 2);
+      norm += w;
+      for (let i = 0; i < width; i++) out[t * width + i] += w * shares[s * width + i];
+    }
+    for (let i = 0; i < width; i++) out[t * width + i] /= norm;
+  }
+  return out;
+}
+
+/**
+ * Quantile q of one row of shares (positions −extent..extent, one per column), with `belowShare`
+ * of the mass off the map to the left. Linear inside a position's cell (position ± 0.5), so the
+ * result moves smoothly from day to day; clamps to ±(extent + 0.5) if it falls off the map.
+ */
+export function rowQuantile(shares: Float64Array, row: number, width: number, belowShare: number, q: number): number {
+  const extent = (width - 1) / 2;
+  let cumulative = belowShare;
+  if (cumulative >= q) return -extent - 0.5;
+  for (let i = 0; i < width; i++) {
+    const mass = shares[row * width + i];
+    if (cumulative + mass >= q && mass > 0) return i - extent - 0.5 + (q - cumulative) / mass;
+    cumulative += mass;
+  }
+  return extent + 0.5;
+}

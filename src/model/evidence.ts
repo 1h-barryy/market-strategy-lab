@@ -1,5 +1,6 @@
 /**
- * Caption rules (DESIGN.md §4 "Live captions"): measured stats in, caption keys out.
+ * Evidence rules behind every caption (DESIGN.md §4, §5): measured spread and mean vs. a baseline in,
+ * caption keys out. Shared by all chapters.
  * Pure; the wording for each key lives in content/copy.ts.
  */
 

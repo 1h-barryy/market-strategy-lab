@@ -32,6 +32,7 @@ button { font: inherit; cursor: pointer; }
 .eyebrow { margin: 0; font: 11px var(--mono); letter-spacing: 0.12em; color: #adb5bd; }
 .tagline { margin: 0 0 8px; font-size: 14px; color: var(--neutral); }
 .hint, .legend { margin: 0; font-size: 12px; line-height: 1.5; color: #adb5bd; }
+.legend-line { display: block; margin-top: 3px; }
 .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 2px; }
 .swatch.up { background: var(--up); }
 .swatch.down { background: var(--down); }
@@ -47,7 +48,7 @@ button.primary:hover { filter: brightness(0.92); }
 button.link:hover { color: var(--neutral); }
 
 .caption-box { border-color: #3a3f4a; }
-.caption { margin: 0; font-size: 14px; line-height: 1.5; color: var(--neutral); }
+.caption { margin: 0; font-size: 14px; line-height: 1.5; color: var(--neutral); white-space: pre-line; }
 .note { margin: 6px 0 0; font-size: 13px; color: var(--up); }
 .note:empty { display: none; }
 

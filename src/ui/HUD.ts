@@ -70,6 +70,16 @@ export class HUD {
     this.el.legend.replaceChildren(document.createTextNode(`${prefix} `), ...swatch('up', up), document.createTextNode(' '), ...swatch('down', down));
   }
 
+  /** Plain-text legend, one line each (replaces the color legend). */
+  setLegendLines(lines: readonly string[]): void {
+    this.el.legend.replaceChildren(...lines.map((line) => {
+      const span = document.createElement('span');
+      span.className = 'legend-line';
+      span.textContent = line;
+      return span;
+    }));
+  }
+
   /** Intro or free-play text with its buttons; `null` hides the box. */
   setIntro(lines: readonly string[] | null, actions: readonly HudAction[] = []): void {
     this.el.intro.hidden = lines === null;

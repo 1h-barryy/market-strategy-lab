@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { finalVariance, generateBatch, type WorldParams } from './process';
 import {
-  dayHistograms, ghostHistograms, ghostQuantile, momentsByDay, positionsAt, quantile, smoothShares, varianceRatioTheory,
+  dayHistograms, ghostHistograms, ghostQuantile, histogramQuantile, momentsByDay, positionsAt, quantile, rowQuantile, smoothAcrossDays, smoothShares, varianceRatioTheory,
 } from './stats';
 
 const world: WorldParams = { tilt: 0, sigmaStep: 0.02, rho: 0, n: 250, seed: 2468 };
@@ -28,6 +28,14 @@ describe('per-day histograms', () => {
     for (let t = 0; t <= 250; t += 25) {
       expect(rowSum(shares, h.width, t) + (h.below[t] + h.above[t]) / h.total).toBeCloseTo(1, 12);
     }
+  });
+
+  it('smoothing across days leaves early days untouched and keeps late rows summing to ~1', () => {
+    const g = ghostHistograms(250, 0.5, 100);
+    const shares = smoothShares(g, 1.5);
+    const smoothed = smoothAcrossDays(shares, 250, g.width, 0.02);
+    expect(Array.from(smoothed.subarray(5 * g.width, 6 * g.width))).toEqual(Array.from(shares.subarray(5 * g.width, 6 * g.width)));
+    expect(rowSum(smoothed, g.width, 240)).toBeCloseTo(1, 6);
   });
 
   it('agrees with positionsAt and momentsByDay', () => {
@@ -95,6 +103,28 @@ describe('spread over the year', () => {
       }
     });
   }
+
+  it('histogram quantiles agree with exact ghost quantiles and handle off-map mass', () => {
+    const g = ghostHistograms(250, 0.55, 100);
+    for (const t of [5, 60, 250]) {
+      expect(histogramQuantile(g, t, 0.25)).toBe(ghostQuantile(t, 0.55, 0.25));
+      expect(histogramQuantile(g, t, 0.75)).toBe(ghostQuantile(t, 0.55, 0.75));
+    }
+    const far = ghostHistograms(250, 0.6, 30);
+    expect(histogramQuantile(far, 250, 0.5)).toBe(31);
+  });
+
+  it('row quantiles of smoothed shares sit close to the exact quartiles and move smoothly', () => {
+    const g = ghostHistograms(250, 0.5, 100);
+    const shares = smoothShares(g, 1.5);
+    let previous = rowQuantile(shares, 99, g.width, 0, 0.75);
+    for (let t = 100; t <= 250; t++) {
+      const upper = rowQuantile(shares, t, g.width, 0, 0.75);
+      expect(Math.abs(upper - ghostQuantile(t, 0.5, 0.75))).toBeLessThan(1.5);
+      expect(Math.abs(upper - previous)).toBeLessThan(0.5);
+      previous = upper;
+    }
+  });
 
   it('quantile interpolates between order statistics', () => {
     expect(quantile([4, 1, 3, 2], 0.5)).toBe(2.5);

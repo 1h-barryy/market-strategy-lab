@@ -49,7 +49,26 @@ export interface Copy {
     summary: (start: number, end: number, change: number) => string;
     streak: (days: number, up: boolean) => string;
   };
+  terrain: TerrainCopy;
   errors: { noWebgl: string; noWebglDetail: string };
+}
+
+export interface TerrainCopy {
+  header: { title: string; tagline: string; hint: string };
+  legend: readonly string[];
+  /** Asymmetry note, from the rendered labels at ± the same distance. */
+  asymmetry: (fall: string, rise: string) => string;
+  intro: { steps: readonly [IntroText, IntroText]; free: IntroText; back: string };
+  day: { label: string; subtitle: string; left: string; right: string; value: (day: number, days: number) => string };
+  labels: { day: (t: number) => string; offMap: string; ghost: string };
+  year: { wider: string; narrower: string; same: string; unclear: string; needMore: string; moodUp: string; moodDown: string; offMap: string };
+  dayCaption: {
+    middleHalf: (day: number, low: string, high: string) => string;
+    wider: string;
+    narrower: string;
+    same: string;
+    unclear: string;
+  };
 }
 
 export interface IntroText {
@@ -143,6 +162,53 @@ const en: Copy = {
     title: (n) => `This stock's ${n} days`,
     summary: (start, end, change) => `Started at ${money(start)} · ended at ${money(end)} · ${pct(change, 1)}`,
     streak: (days, up) => `Longest streak: ${days} ${days === 1 ? 'day' : 'days in a row'}, ${up ? 'up' : 'down'}`,
+  },
+  terrain: {
+    header: {
+      title: 'Chapter 2 · The Terrain',
+      tagline: 'The pile was one day. This is the whole year.',
+      hint: 'Drag along the floor or use the Day slider to pick a day · D: debug',
+    },
+    legend: [
+      'Terrain: where stocks are, day after day. Height: how many stocks are there.',
+      'Ghost: if the crowd ignored yesterday.',
+      'Lines along the valley: where the middle half of stocks are (solid) and where the ghost\'s are (dashed).',
+      'Glowing dots: single stocks walking through their year.',
+    ],
+    asymmetry: (fall, rise) => `Gains and losses aren't symmetric: a fall to ${fall} and a rise to ${rise} are the same distance on this map.`,
+    intro: {
+      steps: [
+        { lines: ['The pile was one day. This is the whole year. Each slice is one day: how many stocks are where.', 'Drag the Day slider, or along the floor, to walk through the year.'] },
+        { lines: ['The ghost shows a crowd that ignores yesterday. Slide Yesterday.', 'Watch whether the valley opens faster or slower than the ghost.'] },
+      ],
+      free: { lines: ['Read the year. Does this crowd have a habit a gambler could bet on?'] },
+      back: '← Back to the board',
+    },
+    day: {
+      label: 'Day',
+      subtitle: 'Pick a day to look at',
+      left: 'Start',
+      right: 'One year',
+      value: (day, days) => `Day ${day} of ${days}`,
+    },
+    labels: { day: (t) => `Day ${t}`, offMap: 'Off the map', ghost: 'If the crowd ignored yesterday' },
+    year: {
+      wider: 'The valley opens faster than the ghost: the crowd chases yesterday, so the future gets less certain, faster.',
+      narrower: 'The valley opens slower than the ghost: the crowd turns against yesterday, so stocks stay closer to where they started.',
+      same: 'The valley opens just like the ghost: no habit visible over the year.',
+      unclear: 'The valley may be opening differently from the ghost, but not clearly.',
+      needMore: 'Not enough stocks to read the year yet.',
+      moodUp: "The whole valley leans up: the crowd's mood pushes stocks up overall.",
+      moodDown: "The whole valley leans down: the crowd's mood pushes stocks down overall.",
+      offMap: 'Some stocks went off the map: they moved further than the terrain shows.',
+    },
+    dayCaption: {
+      middleHalf: (day, low, high) => `Day ${day}: the middle half of stocks are between ${low} and ${high}.`,
+      wider: "That's wider than the ghost.",
+      narrower: "That's narrower than the ghost.",
+      same: 'About the same as the ghost.',
+      unclear: 'Too close to call against the ghost.',
+    },
   },
   errors: { noWebgl: '3D VIEW UNAVAILABLE', noWebglDetail: 'WebGL could not start. Reload to retry.' },
 };

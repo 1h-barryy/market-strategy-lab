@@ -1,4 +1,4 @@
-import { CAPTION_RULES } from './captions';
+import { CAPTION_RULES } from '../../model/evidence';
 
 /** Guided intro (DESIGN.md §4): premise → Mood → Yesterday → free play. */
 export type IntroStep = 1 | 2 | 3 | 'free';
