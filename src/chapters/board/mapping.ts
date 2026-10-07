@@ -104,6 +104,11 @@ export class BoardMapping {
     return sigmaStep * (2 * k - this.n);
   }
 
+  /** Price change of bin k as a fraction: exp(σ_step·(2k − n)) − 1 (what players see as % gain/loss). */
+  binPriceChange(k: number, sigmaStep: number): number {
+    return Math.expm1(this.binLogReturn(k, sigmaStep));
+  }
+
   /** Price panel x for step t. */
   priceX(t: number): number {
     const { left, right } = FRAME.price;

@@ -6,6 +6,13 @@ import { BoardMapping, type Point } from './mapping';
 /** Seconds per phase at speed 1. Playback timing only; the path itself is fixed by the model. */
 const TIMING = { entry: 0.3, step: 0.16, fall: 0.35 } as const;
 
+/**
+ * Trail: dots at earlier moments of the same ball, each colored by the move it was making then.
+ * 4 dots × 0.12 s cover the last ~3 days, so a chasing crowd leaves one-colored streaks and a
+ * reversing crowd leaves alternating dots. It shows the ball's own history, never other balls.
+ */
+const TRAIL = { dots: 4, spacing: 0.12, capacity: 1600 } as const;
+
 interface Ball {
   /** Release order; also the instance index and the batch path index. */
   index: number;
@@ -18,17 +25,25 @@ interface Ball {
   slot: number;
 }
 
+interface Pose extends Point {
+  squash: number;
+  color: THREE.Color;
+}
+
 const colorUp = new THREE.Color(palette.up);
 const colorDown = new THREE.Color(palette.down);
 const colorNeutral = new THREE.Color(palette.neutral);
 const colorAccent = new THREE.Color(palette.accent);
+const colorBackground = new THREE.Color(palette.background);
 
 /**
- * Balls in flight and in the bins, drawn as one instanced mesh. Ball k is batch path k; every
- * left/right move it makes is that path's step sequence, played back along scripted arcs.
+ * Balls in flight and in the bins, drawn as one instanced mesh, plus their trails. Ball k is batch
+ * path k; every left/right move it makes is that path's step sequence, played back along arcs.
  */
 export class Balls {
+  readonly group = new THREE.Group();
   readonly mesh: THREE.InstancedMesh;
+  private readonly trail: THREE.InstancedMesh;
   /** Landed balls per bin, bottom to top. */
   readonly bins: number[][];
   private readonly balls: Ball[] = [];
@@ -41,15 +56,20 @@ export class Balls {
   private readonly position = new THREE.Vector3();
   private readonly scale = new THREE.Vector3();
   private readonly identity = new THREE.Quaternion();
+  private readonly tint = new THREE.Color();
 
   constructor(private readonly mapping: BoardMapping, capacity: number) {
     const geometry = new THREE.SphereGeometry(1, 16, 12);
-    const material = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0, emissive: 0x000000 });
-    this.mesh = new THREE.InstancedMesh(geometry, material, capacity);
+    this.mesh = new THREE.InstancedMesh(geometry, new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0 }), capacity);
     this.mesh.name = 'Balls';
-    this.mesh.count = 0;
-    // Instances move every frame; a cached bounding sphere would cull them wrongly.
-    this.mesh.frustumCulled = false;
+    this.trail = new THREE.InstancedMesh(geometry, new THREE.MeshBasicMaterial(), TRAIL.capacity);
+    this.trail.name = 'BallTrails';
+    for (const mesh of [this.mesh, this.trail]) {
+      mesh.count = 0;
+      // Instances move every frame; a cached bounding sphere would cull them wrongly.
+      mesh.frustumCulled = false;
+    }
+    this.group.add(this.mesh, this.trail);
     this.bins = Array.from({ length: mapping.n + 1 }, () => []);
     this.unit = mapping.stackUnit(1);
   }
@@ -69,11 +89,6 @@ export class Balls {
   /** Paths of all landed balls, in release order. */
   landedPaths(): Path[] {
     return this.balls.filter((b) => b.landed).map((b) => b.path);
-  }
-
-  /** Bin counts of landed balls. */
-  counts(): number[] {
-    return this.bins.map((bin) => bin.length);
   }
 
   /** Current stack height unit, shared with the analytic overlay. */
@@ -105,26 +120,38 @@ export class Balls {
 
   /** Advance flights by dt seconds of playback (already multiplied by speed). */
   update(dt: number, reducedMotion: boolean): void {
-    const n = this.mapping.n;
-    const duration = TIMING.entry + n * TIMING.step + TIMING.fall;
-    for (let i = 0; i < this.balls.length; i++) {
-      const ball = this.balls[i];
+    const duration = TIMING.entry + this.mapping.n * TIMING.step + TIMING.fall;
+    let dots = 0;
+    for (const ball of this.balls) {
       if (ball.landed) continue;
       ball.age += dt;
-      if (ball.age >= duration) this.land(ball);
-      else this.writeFlying(i, ball, reducedMotion);
+      if (ball.age >= duration) {
+        this.land(ball);
+        continue;
+      }
+      this.writePose(this.mesh, ball.index, this.pose(ball, ball.age, reducedMotion), 1);
+      for (let i = 1; i <= TRAIL.dots && dots < TRAIL.capacity; i++) {
+        const age = ball.age - i * TRAIL.spacing;
+        if (age < TIMING.entry) break;
+        const pose = this.pose(ball, age, reducedMotion);
+        pose.color = this.tint.copy(pose.color).lerp(colorBackground, 0.18 * i);
+        this.writePose(this.trail, dots++, pose, 0.7 - 0.1 * i);
+      }
     }
+    this.trail.count = dots;
     this.flush();
   }
 
   /** Re-lays every landed ball if the stack scale changed, and uploads instance data. */
   flush(): void {
     if (this.landedDirty) {
-      for (let i = 0; i < this.balls.length; i++) if (this.balls[i].landed) this.writeLanded(i, this.balls[i]);
+      for (const ball of this.balls) if (ball.landed) this.writeLanded(ball);
       this.landedDirty = false;
     }
-    this.mesh.instanceMatrix.needsUpdate = true;
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    for (const mesh of [this.mesh, this.trail]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
   }
 
   /** Ball index at a landed position, or −1. */
@@ -144,7 +171,7 @@ export class Balls {
     this.selected = index;
     for (const i of [previous, index]) {
       const ball = this.balls[i];
-      if (ball?.landed) this.writeLanded(i, ball);
+      if (ball?.landed) this.writeLanded(ball);
     }
     this.flush();
   }
@@ -159,59 +186,61 @@ export class Balls {
       this.unit = this.mapping.stackUnit(this.scaleCount);
       this.landedDirty = true;
     }
-    this.writeLanded(ball.index, ball);
+    this.writeLanded(ball);
   }
 
-  private writeLanded(index: number, ball: Ball): void {
+  private writeLanded(ball: Ball): void {
     const r = this.mapping.ballRadius;
-    const isSelected = index === this.selected;
+    const isSelected = ball.index === this.selected;
     const xz = isSelected ? r * 1.6 : r;
     this.position.set(this.mapping.binX(ball.bin), this.mapping.stackY(ball.slot, this.unit), isSelected ? 0.05 : 0);
     // Stacks compress as counts grow: each ball becomes a coin exactly one stack unit tall.
     this.scale.set(xz, Math.min(r, this.unit / 2), xz);
-    this.mesh.setMatrixAt(index, this.matrix.compose(this.position, this.identity, this.scale));
+    this.mesh.setMatrixAt(ball.index, this.matrix.compose(this.position, this.identity, this.scale));
     const final = ball.path.final;
-    this.mesh.setColorAt(index, isSelected ? colorAccent : final > 0 ? colorUp : final < 0 ? colorDown : colorNeutral);
+    this.mesh.setColorAt(ball.index, isSelected ? colorAccent : final > 0 ? colorUp : final < 0 ? colorDown : colorNeutral);
   }
 
-  private writeFlying(index: number, ball: Ball, reducedMotion: boolean): void {
+  /** Where a flying ball is at `age`, and its color: the direction of the move it is making. */
+  private pose(ball: Ball, age: number, flat: boolean): Pose {
     const m = this.mapping;
-    const r = m.ballRadius;
-    let p: Point;
-    let squash = 1;
-    let color = colorNeutral;
-    const tStep = ball.age - TIMING.entry;
     const n = m.n;
+    const tStep = age - TIMING.entry;
     if (tStep < 0) {
-      const u = ball.age / TIMING.entry;
+      const u = age / TIMING.entry;
       const from = m.dropStart();
       const to = m.ballAt(0, 0);
-      p = { x: to.x, y: from.y + (to.y - from.y) * u * u };
-    } else if (tStep < n * TIMING.step) {
+      return { x: to.x, y: from.y + (to.y - from.y) * u * u, squash: 1, color: colorNeutral };
+    }
+    if (tStep < n * TIMING.step) {
       const t = Math.floor(tStep / TIMING.step);
       const u = tStep / TIMING.step - t;
       const from = m.ballAt(t, ball.upCount[t]);
       const to = m.ballAt(t + 1, ball.upCount[t + 1]);
-      const arc = reducedMotion ? 0 : m.hop * 4 * u * (1 - u);
-      p = { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u + arc };
-      if (!reducedMotion && u < 0.15) squash = 0.75 + (0.25 * u) / 0.15;
-      color = ball.path.steps[t] > 0 ? colorUp : colorDown;
-    } else {
-      const u = (tStep - n * TIMING.step) / TIMING.fall;
-      const from = m.ballAt(n, ball.bin);
-      const to = m.stackY(this.bins[ball.bin].length, this.unit);
-      p = { x: from.x, y: from.y + (to - from.y) * u * u };
-      color = ball.path.steps[n - 1] > 0 ? colorUp : colorDown;
+      const arc = flat ? 0 : m.hop * 4 * u * (1 - u);
+      const squash = !flat && u < 0.15 ? 0.75 + (0.25 * u) / 0.15 : 1;
+      const color = ball.path.steps[t] > 0 ? colorUp : colorDown;
+      return { x: from.x + (to.x - from.x) * u, y: from.y + (to.y - from.y) * u + arc, squash, color };
     }
-    this.position.set(p.x, p.y, 0.02);
-    this.scale.set(r / Math.sqrt(squash), r * squash, r / Math.sqrt(squash));
-    this.mesh.setMatrixAt(index, this.matrix.compose(this.position, this.identity, this.scale));
-    this.mesh.setColorAt(index, color);
+    const u = (tStep - n * TIMING.step) / TIMING.fall;
+    const from = m.ballAt(n, ball.bin);
+    const to = m.stackY(this.bins[ball.bin].length, this.unit);
+    return { x: from.x, y: from.y + (to - from.y) * u * u, squash: 1, color: ball.path.steps[n - 1] > 0 ? colorUp : colorDown };
+  }
+
+  private writePose(mesh: THREE.InstancedMesh, index: number, pose: Pose, size: number): void {
+    const r = this.mapping.ballRadius * size;
+    this.position.set(pose.x, pose.y, mesh === this.trail ? 0.01 : 0.02);
+    this.scale.set(r / Math.sqrt(pose.squash), r * pose.squash, r / Math.sqrt(pose.squash));
+    mesh.setMatrixAt(index, this.matrix.compose(this.position, this.identity, this.scale));
+    mesh.setColorAt(index, pose.color);
   }
 
   dispose(): void {
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();
+    (this.trail.material as THREE.Material).dispose();
     this.mesh.dispose();
+    this.trail.dispose();
   }
 }

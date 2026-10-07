@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { copy } from '../../content/copy';
 import { pricePath, type Path } from '../../model/process';
 import { palette } from '../../world/shared/palette';
 import { label } from './histogram';
@@ -21,6 +22,7 @@ export class PriceLine {
   private readonly line: THREE.LineSegments;
   private readonly trace: THREE.Line;
   private readonly labels = new THREE.Group();
+  private readonly empty = label(copy().stock.empty, 'scene-label strong');
   private progress = 1;
   private n: number;
   /** True when the selected path needed a wider scale than the default ±3 sd. */
@@ -47,9 +49,10 @@ export class PriceLine {
     this.trace = new THREE.Line(traceGeometry, new THREE.LineBasicMaterial({ color: palette.accent }));
     this.line.frustumCulled = this.trace.frustumCulled = false;
 
-    const caption = label('price S_t of the inspected ball (log scale)');
+    const caption = label(copy().stock.panelCaption(this.n));
     caption.position.set((left + right) / 2, top + 0.5, 0);
-    this.group.add(this.frame, this.line, this.trace, this.labels, caption);
+    this.empty.position.set((left + right) / 2, mapping.priceY(0, 1) + 1, 0);
+    this.group.add(this.frame, this.line, this.trace, this.labels, caption, this.empty);
     this.clear();
   }
 
@@ -85,11 +88,13 @@ export class PriceLine {
     this.setAxisLabels(half, prices[this.n]);
     this.progress = 0;
     this.line.visible = this.trace.visible = true;
+    this.empty.visible = false;
     this.applyProgress();
   }
 
   clear(): void {
     this.line.visible = this.trace.visible = false;
+    this.empty.visible = true;
     this.scaleExtended = false;
     this.setAxisLabels(null, null);
   }
@@ -115,14 +120,15 @@ export class PriceLine {
       item.position.set(x, y, 0);
       this.labels.add(item);
     };
-    add(`S₀ = ${S0}`, left - 0.9, m.priceY(0, 1));
-    add('t = 0', left, bottom - 0.4);
-    add(`t = ${this.n}`, right, bottom - 0.4);
+    const text = copy().stock;
+    add(text.price(S0), left - 0.7, m.priceY(0, 1));
+    add(text.day(0), left, bottom - 0.4);
+    add(text.day(this.n), right, bottom - 0.4);
     if (half !== null) {
-      add((S0 * Math.exp(half)).toFixed(1), left - 0.7, m.priceY(half, half));
-      add((S0 * Math.exp(-half)).toFixed(1), left - 0.7, m.priceY(-half, half));
+      add(text.price(S0 * Math.exp(half)), left - 0.7, m.priceY(half, half));
+      add(text.price(S0 * Math.exp(-half)), left - 0.7, m.priceY(-half, half));
     }
-    if (final !== null && half !== null) add(`S_n = ${final.toFixed(2)}`, right + 1.1, m.priceY(Math.log(final / S0), half), true);
+    if (final !== null && half !== null) add(text.price(final), right + 0.8, m.priceY(Math.log(final / S0), half), true);
   }
 
   dispose(): void {

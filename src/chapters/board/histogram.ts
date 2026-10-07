@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { copy } from '../../content/copy';
 import { palette } from '../../world/shared/palette';
 import { BoardMapping, FRAME } from './mapping';
 
@@ -11,14 +12,16 @@ export function label(text: string, className = 'scene-label'): CSS2DObject {
 }
 
 /**
- * Analytic ρ = 0 overlay: expected count per bin, Binomial(n, π) × landed balls, on the stacks' scale.
- * Drawn as a short bar over each bin joined by a thin polyline. Also labels bins with log-returns.
+ * Analytic ρ = 0 overlay ("If the crowd ignored yesterday"): expected count per bin,
+ * Binomial(n, π) × landed balls, on the stacks' scale. Drawn as a short bar over each bin joined by
+ * a thin polyline, with a legend at its peak. Also labels bins with % price change.
  */
 export class BinomialOverlay {
   readonly group = new THREE.Group();
   private readonly ticks: THREE.LineSegments;
   private readonly curve: THREE.Line;
   private readonly labels = new THREE.Group();
+  private readonly legend = label(copy().board.outline, 'scene-label strong outline-label');
 
   constructor(private readonly mapping: BoardMapping) {
     this.group.name = 'BinomialOverlay';
@@ -31,7 +34,7 @@ export class BinomialOverlay {
     curveGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bins * 3), 3));
     this.curve = new THREE.Line(curveGeometry, new THREE.LineBasicMaterial({ color: palette.neutral, transparent: true, opacity: 0.35 }));
     this.ticks.frustumCulled = this.curve.frustumCulled = false;
-    this.group.add(this.ticks, this.curve, this.labels);
+    this.group.add(this.ticks, this.curve, this.labels, this.legend);
     this.group.visible = false;
   }
 
@@ -50,26 +53,30 @@ export class BinomialOverlay {
     });
     ticks.needsUpdate = curve.needsUpdate = true;
     this.group.visible = expected.some((c) => c > 0);
+    const peak = expected.indexOf(Math.max(...expected));
+    this.legend.position.set(m.binX(peak) + m.dx * 0.5, m.countY(expected[peak], unit) + 0.35, 0.1);
+    this.legend.visible = this.group.visible;
   }
 
-  /** Log-return labels under the bins (at most ~7, always including the center). */
+  /** % price-change labels under the bins (at most ~7, always including the center). */
   setLabels(sigmaStep: number): void {
     this.labels.clear();
     const n = this.mapping.n;
+    const text = copy().board;
     const every = Math.max(1, Math.ceil((n + 1) / 7));
     for (let k = n % 2 === 0 ? (n / 2) % every : 0; k <= n; k += every) {
-      const pct = this.mapping.binLogReturn(k, sigmaStep) * 100;
-      const item = label(`${pct > 0 ? '+' : ''}${pct.toFixed(Math.abs(pct) < 10 ? 1 : 0)}%`);
+      const item = label(text.percent(this.mapping.binPriceChange(k, sigmaStep)));
       item.position.set(this.mapping.binX(k), FRAME.binBottom - 0.45, 0);
       this.labels.add(item);
     }
-    const caption = label('final log-return per bin', 'scene-label');
+    const caption = label(text.binsCaption(n), 'scene-label');
     caption.position.set(0, FRAME.binBottom - 0.95, 0);
     this.labels.add(caption);
   }
 
   dispose(): void {
     this.labels.clear();
+    this.legend.removeFromParent();
     this.ticks.geometry.dispose();
     this.curve.geometry.dispose();
     (this.ticks.material as THREE.Material).dispose();
