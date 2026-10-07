@@ -1,12 +1,13 @@
 Market Under Stress — Design Document
 
-Version: 0.4.1 (supersedes v0.2)
+Version: 0.5 (supersedes v0.2)
 
-Changelog: 0.4.1: the ρ control is called Yesterday for players (Herd stays the internal name); "stocks" used consistently in player text; mood captions say "overall".
+Changelog: 0.5: every path is 250 days, the board shows the first n (open question 1 resolved); Chapter 2 rewritten as a terrain behind the board in one continuous scene, with ghost surface, day scrub, captions and % axis extent; Chapter 2 vocabulary; P0.5 done, P1 scoped.
+0.4.1: the ρ control is called Yesterday for players (Herd stays the internal name); "stocks" used consistently in player text; mood captions say "overall".
 0.4: framing (pinball machine, stocks, days, the crowd), player vocabulary that hides model symbols, Chapter 1 rewritten with guided intro, live captions and visible Herd; legibility principle; P0.5 milestone inserted, P0 done.
 0.3.1: drift and inertia re-parameterized to be independent (stationary π + ρ); ghost/luck baseline defined as same π, ρ = 0; P0 board decisions recorded; deploy base path set to the repo name.
 
-Status: Pre-production. P0 done: tested shared model (src/model/) and a rough, playable Chapter 1 with dev-panel controls. P0.5 (legibility pass) in progress. Working title: Market Under Stress (subject to change)
+Status: Pre-production. P0 and P0.5 done: tested shared model and a legible, playable Chapter 1 (plain-language controls, captions, intro, debug overlay). P1 (Chapter 2, The Terrain) in progress. Working title: Market Under Stress (subject to change)
 
 1. Vision
 
@@ -45,6 +46,15 @@ n	Days	each row is one trading day
 ball	a stock	
 bin	where the stock ends up after N days (% gain/loss)	
 ρ = 0 overlay	"If the crowd ignored yesterday"	
+
+Chapter 2 (The Terrain). One-line idea: "The pile was one day. This is the whole year."
+Model	Player sees
+density surface over (day, position)	the terrain: "where stocks are, day after day"
+density	height: "how many stocks are there"
+spread growing with t	the valley opening up: "the future getting less certain"
+ρ = 0 surface, same π	ghost surface: "if the crowd ignored yesterday" (same wording as Chapter 1)
+VR(q) > 1 / < 1	"Chases it" makes the valley open faster than the ghost; "Turns against it" makes it open slower. Said in plain words, and only once enough data supports it.
+interquartile range per day	"the middle half of stocks"
 
 Player text always says "stock", never "ball"; "ball" appears only in code and the debug overlay. Captions describe the pile overall ("pushing stocks up overall"), never every stock.
 
@@ -102,6 +112,8 @@ Final position X_n = Σ ε_t (in steps) has mean n(2π − 1) and variance 4π(1
 
 Batches: a batch is generated once per parameter change and stored in app state. Path i is seeded from (seed, i), so a path does not depend on batch size or on which other paths were drawn.
 
+Path length (resolves open question 1): every stock's path is 250 days (one trading year), so n = 250 in the shared batch of 2,000 stocks. The board shows only the first n_board days (Days, 8–24); Chapter 2 shows all 250; Chapter 3 uses the same length. Changing Days therefore never regenerates the batch. Regeneration (2,000 × 250 steps) runs at most once per animation frame while a control is being dragged.
+
 3.3 Key property: variance ratio
 
 For q-step returns, the variance ratio is
@@ -153,7 +165,7 @@ Average clearly shifted → Mood is pushing everything up or down.
 No pattern is claimed until enough balls have landed; until then the caption asks for more balls. The rules are a pure function (measured stats in, caption key out) with unit tests.
 
 Board mapping (P0 decisions)
-One row of pegs = one step; the board has n rows and n + 1 bins. In P0, path length = row count (n ∈ [8, 24]); see open question 1 for longer paths.
+One row of pegs = one step; the board has n_board rows (Days, 8–24) and n_board + 1 bins, and shows the first n_board days of each 250-day path.
 Moving right = up-step (+1). A ball's horizontal position is its running count of steps, so the board geometry is fixed and does not change with σ_step. σ_step shows up on the price-line scale and in the log-return labels under the bins.
 Ball k released is path k of the precomputed batch in app state, so the board reveals the stored batch in order rather than drawing new randomness.
 
@@ -172,30 +184,48 @@ A batch of paths with the current parameters, stored in app state and consumed b
 
 5. Chapter 2 — The Terrain
 
-Role: The player reads the market's shape.
+Role: The player reads the market's shape. "The pile was one day. This is the whole year."
+
+One continuous scene
+The terrain lives physically behind the board; there is no scene switch. Entering Chapter 2, the camera moves smoothly from the front view to a 3/4 elevated view so the player discovers the terrain behind the board (the terrain fades in during the move; it is hidden in Chapter 1). Leaving moves the camera back. The board, its pile and its % labels stay in place; the inspected-stock price panel is hidden in Chapter 2.
 
 The surface
-x-axis: time (step 0 → n)
-z-axis: log-return
-height: probability density at that time and return
+Left-right: the same position axis as the board's bins, aligned exactly in world space (one step = half a bin, so a stock's position on the terrain is its running count of up minus down days, and the % labels are the same price changes the board shows).
+Depth: time, day 0 at the board, day 250 at the far end.
+Height: how many stocks are at that position on that day (density per step, from the batch).
+The slice at day n_board lines up with the board's pile: same shape, same place.
 
-It reads as a valley that opens outward over time. Built from a simulated batch (~2,000 paths): a histogram per time slice, smoothed, displaced into a mesh. Cheap to recompute on parameter change.
+Built from the shared batch (2,000 stocks × 250 days): a histogram of positions per day, smoothed with a small Gaussian kernel (it also removes the odd/even-day lattice zig-zag), displaced into a mesh. Mood and Yesterday stay available in Chapter 2; changing them reshapes terrain and ghost with a short visual morph (results change instantly; only the drawing eases).
 
-Reference ridge
+% axis extent
+Over 250 days stocks spread much wider than over n_board days (at "Ignores it", ±3 sd is ±47 steps; at "Chases it hard" ±203; Mood at its extreme shifts the center by 50 steps). The terrain keeps the board's linear scale and spans ±100 steps around the start, about 4–11× the board's width depending on Days. Linear keeps the honest message: how fast the valley opens is exactly what the player is reading, and any compressed axis would distort it. Stocks beyond ±100 steps are not dropped: each day's share beyond either edge is drawn as an "off the map" ledge at that edge, and counted in every caption and statistic. Days is only adjustable in Chapter 1, so the terrain's scale is fixed while it is on screen.
 
-A faint ghost surface shows the shape of the same world with ρ = 0: same π (same drift), same σ_step. The difference between the live terrain and the ghost is the structure in the market:
+Ghost surface
+A faint ghost surface shows the same world with Yesterday = "Ignores it": same Mood (same π), same σ_step, ρ = 0, computed exactly from Binomial(t, π) with the same smoothing. It is the same reference as Chapter 1's outline. The gap between terrain and ghost is the crowd's habit, now over a whole year:
+Terrain wider than the ghost → the crowd chases yesterday; the valley opens faster.
+Terrain narrower than the ghost → the crowd turns against yesterday; the valley opens slower.
+Matches the ghost → no habit visible.
 
-Terrain wider than the ghost → momentum
-Terrain narrower than the ghost → mean reversion
-Matches the ghost → no exploitable structure
-
-A readout shows VR(q) for a few horizons.
+Floor lines
+On the floor, two pairs of lines trace where the middle half of stocks are on each day: solid for the terrain, dashed for the ghost. Their opening angle is the valley opening up; their divergence is the variance ratio made visible without numbers.
 
 Interaction
-Orbit / move along the time axis.
-Scrub a time slice to see that slice's distribution.
-Change ρ (or return to Chapter 1) and watch the terrain morph.
-Optional: release a few walkers (glowing marbles) that trace individual paths across the surface.
+Day scrub: a Day slider (1–250), or click/drag along the terrain's floor. The chosen day's slice is highlighted on the terrain and on the ghost, with a plain caption about that day.
+Mood and Yesterday controls, as in Chapter 1 (no Days).
+Walkers: a few stocks travel along their own paths across the terrain as glowing points.
+Debug overlay (D): exact spreads, VR(q) measured vs. theory, off-map shares.
+
+Captions (pure, tested rules in the same style as Chapter 1)
+Year caption: compares the spread on day 250 with the ghost (same thresholds as Chapter 1: ±10% counts as the same, a claim needs 4 standard errors and at least 40 stocks). Wider → "opens faster"; narrower → "opens slower"; same → no habit visible. A mood sentence is added when the average has clearly shifted.
+Day caption: for the chosen day, where the middle half of stocks are (as % gain/loss) and whether that is wider, narrower or about the same as the ghost on that day, under the same rules.
+
+Intro (skippable, replayable, same pattern as Chapter 1)
+1. The idea: the pile was one day, this is the whole year; drag the day.
+2. The ghost: change Yesterday and watch the valley open faster or slower than the ghost.
+Then free play.
+
+Navigation
+Chapter 1 free play offers "Continue to the terrain"; Chapter 2 offers "Back to the board". The camera move is the transition.
 6. Chapter 3 — The Test
 
 Role: The player bets on the structure and must prove it.
@@ -238,7 +268,7 @@ Null: 200 × 100 × 250 = 5M steps
 Both run on the main thread in well under a second. No Web Worker needed at this scale.
 
 7. Navigation & Structure
-Separate scenes with transitions: one renderer; a chapter manager moves the camera / crossfades between chapter scenes. A shared continuous world can be layered on later.
+One continuous scene: one renderer, one scene, one camera rig shared by all chapters. Each chapter owns its objects in the scene and shows or hides them; the chapter manager switches which chapter is active and the camera rig moves between the chapters' views.
 Full-screen canvas. UI is a minimal overlay (HUD), not a dashboard.
 Shared state: world parameters (tilt, σ, ρ, n, seed), current chapter, generated batches, strategy results. Chapters never talk to each other directly.
 Locomotion: click/scroll to advance between chapters. No WASD driving in v1 (mobile and accessibility cost).
@@ -276,9 +306,9 @@ src/
 │   ├── terrain/       Chapter 2
 │   └── test/          Chapter 3
 ├── content/           copy.ts: every player-facing string (per language)
-├── world/shared/      materials, palette, lights, camera rig, post-processing
+├── world/shared/      stage (shared scene, lights, camera rig), palette, materials, post-processing
 ├── app/               state (params, chapter, batches, results), controller
-└── ui/                HUD overlay, styles
+└── ui/                HUD overlay, shared crowd controls (Mood, Yesterday), styles
 
 Rules:
 
@@ -303,7 +333,7 @@ model/random.ts, model/process.ts, model/stats.ts with tests (seed reproducibili
 Chapter interface and chapter manager (one chapter registered)
 Chapter 1 rough: instanced pegs and balls, scripted arcs, bin histogram with analytic overlay, ρ / tilt / σ controls (dev panel acceptable), click-a-ball path unroll
 Debug readout: measured autocorrelation and VR
-P0.5 — Legibility pass
+P0.5 — Legibility pass (done)
 
 Goal: a first-time player can say what Mood and Yesterday do without seeing a number. The model does not change.
 
@@ -315,7 +345,17 @@ Guided intro: premise → Mood → Yesterday → free play; skippable and replay
 Yesterday (Herd) visible on falling stocks (color + short trail of the previous move)
 Inspected ball in plain words
 P1 — The Terrain
-Density surface from batch, ghost ρ = 0 reference, VR readout, time-slice scrub, live morph on parameter change
+
+Goal: a player can say, without numbers, whether this crowd's future opens faster or slower than the ghost, and why.
+
+Shared batch at 250 days; board shows the first n_board days; regeneration coalesced to one per frame
+model/stats.ts: per-day position histograms and smoothing, exact ghost density, per-day spread and quantiles, with tests (rows sum to 1; ρ = 0 spread matches theory; spread growth matches VR theory)
+One continuous scene: shared stage and camera rig; camera move between board and terrain views
+chapters/terrain/: TerrainChapter, mapping.ts, terrain mesh, ghost surface, off-map ledges, floor lines, day slice, walkers
+Live morph on Mood / Yesterday changes
+Day scrub with a plain day caption; year caption; tested caption rules
+Navigation (Continue / Back) and a two-step skippable intro
+Debug overlay for Chapter 2
 P2 — The Test
 model/strategy.ts, model/backtest.ts with tests
 Grid view, train → out-of-sample → null flow, verdict display
@@ -327,9 +367,9 @@ Selection-bias lesson: null distribution of the best of 36 strategies, showing w
 Transaction costs, short selling
 Sentiment shocks / jumps (fat tails)
 Diversification chapter
-Shared continuous world
+Free-roaming shared world (beyond the board-and-terrain scene)
 12. Open Questions
-Fixed n (e.g. 250 steps) for all chapters, or does the board use fewer rows and paths extend beyond the board?
+Resolved in 0.5: paths are 250 days; the board shows the first n_board (see §3.2).
 Does Chapter 3 use Chapter 1's exact batch as the training set, or always a fresh batch from the same parameters?
 Physical form of the inertia control: a dial, a weight on the board, or something on the balls themselves (spin, color)?
 Should the luck baseline in v1 already account for selection across the 36-cell grid, or keep that for the later lesson?
