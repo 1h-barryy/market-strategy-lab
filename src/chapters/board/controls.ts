@@ -1,5 +1,6 @@
 import { copy, type Level, type SliderText } from '../../content/copy';
 import type { WorldParams } from '../../model/process';
+import { BOARD_DAYS } from '../../app/state';
 import { BOARD_LIMITS } from './devPanel';
 
 /** Sliders run −100..100 with the neutral setting at 0, whatever the parameter's range. */
@@ -56,12 +57,15 @@ export class BoardControls {
   private readonly herd: Slider;
   private readonly daysValue: HTMLElement;
   private n = 0;
+  /** Slider changes waiting for the next frame: a drag regenerates the batch at most once per frame. */
+  private pending: Partial<WorldParams> = {};
+  private frame = 0;
 
   constructor(private readonly handlers: ControlHandlers) {
     const text = copy().controls;
     this.element.className = 'board-controls';
-    this.mood = this.slider('mood', text.mood, (position) => handlers.setParams({ tilt: sliderToTilt(position) }));
-    this.herd = this.slider('herd', text.herd, (position) => handlers.setParams({ rho: sliderToRho(position) }));
+    this.mood = this.slider('mood', text.mood, (position) => this.schedule({ tilt: sliderToTilt(position) }));
+    this.herd = this.slider('herd', text.herd, (position) => this.schedule({ rho: sliderToRho(position) }));
 
     const days = document.createElement('div');
     days.className = 'control days';
@@ -85,6 +89,8 @@ export class BoardControls {
 
   /** Reflect the current world (after keyboard, debug panel or intro changes). */
   sync(params: WorldParams): void {
+    // A drag in progress wins over an older value coming back from the store.
+    if (this.frame) return;
     this.setSlider(this.mood, tiltToSlider(params.tilt));
     this.setSlider(this.herd, rhoToSlider(params.rho));
     this.n = params.n;
@@ -99,8 +105,25 @@ export class BoardControls {
     }
   }
 
+  private schedule(changes: Partial<WorldParams>): void {
+    Object.assign(this.pending, changes);
+    if (this.frame) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = 0;
+      const pending = this.pending;
+      this.pending = {};
+      this.handlers.setParams(pending);
+    });
+  }
+
+  dispose(): void {
+    cancelAnimationFrame(this.frame);
+    this.frame = 0;
+    this.element.remove();
+  }
+
   private stepDays(delta: number): void {
-    const n = Math.min(BOARD_LIMITS.n.max, Math.max(BOARD_LIMITS.n.min, this.n + delta));
+    const n = Math.min(BOARD_DAYS.max, Math.max(BOARD_DAYS.min, this.n + delta));
     if (n !== this.n) this.handlers.setParams({ n });
   }
 

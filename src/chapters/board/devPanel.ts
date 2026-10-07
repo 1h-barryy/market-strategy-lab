@@ -1,4 +1,5 @@
 import GUI from 'lil-gui';
+import { BOARD_DAYS } from '../../app/state';
 import type { WorldParams } from '../../model/process';
 
 /** Board-only limits for P0 (the model accepts a wider range of n). */
@@ -6,7 +7,6 @@ export const BOARD_LIMITS = {
   rho: { min: -0.6, max: 0.9, step: 0.05 },
   tilt: { min: -0.1, max: 0.1, step: 0.005 },
   sigmaStep: { min: 0.005, max: 0.05, step: 0.001 },
-  n: { min: 8, max: 24, step: 1 },
 } as const;
 
 export interface Playback {
@@ -35,7 +35,7 @@ export class DevPanel {
     world.add(this.values, 'rho', BOARD_LIMITS.rho.min, BOARD_LIMITS.rho.max, BOARD_LIMITS.rho.step).name('ρ inertia').onChange(change('rho'));
     world.add(this.values, 'tilt', BOARD_LIMITS.tilt.min, BOARD_LIMITS.tilt.max, BOARD_LIMITS.tilt.step).name('tilt (π − 0.5)').onChange(change('tilt'));
     world.add(this.values, 'sigmaStep', BOARD_LIMITS.sigmaStep.min, BOARD_LIMITS.sigmaStep.max, BOARD_LIMITS.sigmaStep.step).name('σ step').onChange(change('sigmaStep'));
-    world.add(this.values, 'n', BOARD_LIMITS.n.min, BOARD_LIMITS.n.max, BOARD_LIMITS.n.step).name('n rows').onChange(change('n'));
+    world.add(this.values, 'n', BOARD_DAYS.min, BOARD_DAYS.max, 1).name('board days').onChange(change('n'));
     world.add(this.values, 'seed', 0, 999_999, 1).name('seed').onFinishChange(change('seed'));
     world.add({ newSeed: () => actions.setParams({ seed: Math.floor(Math.random() * 1_000_000) }) }, 'newSeed').name('new seed');
 

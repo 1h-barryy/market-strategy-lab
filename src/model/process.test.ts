@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  PARAM_RANGES, finalMean, finalVariance, generateBatch, generatePath, pricePath, transitionProbs, type WorldParams,
+  PARAM_RANGES, finalMean, finalVariance, generateBatch, generatePath, prefixPath, pricePath, transitionProbs, type WorldParams,
 } from './process';
 import { mean, meanStep, variance } from './stats';
 
@@ -95,5 +95,19 @@ describe('drift is independent of inertia', () => {
       expect(Math.sqrt(variance(finals)) / sd).toBeGreaterThan(0.97);
       expect(Math.sqrt(variance(finals)) / sd).toBeLessThan(1.03);
     }
+  });
+});
+
+describe('prefix of a path', () => {
+  it('equals generating the shorter path directly, without copying', () => {
+    const long = generatePath({ ...base, n: 250, rho: 0.4 }, 5);
+    const short = generatePath({ ...base, n: 12, rho: 0.4 }, 5);
+    const prefix = prefixPath(long, 12);
+    expect(Array.from(prefix.steps)).toEqual(Array.from(short.steps));
+    expect(Array.from(prefix.logPrice)).toEqual(Array.from(short.logPrice));
+    expect(prefix.final).toBe(short.final);
+    expect(prefix.steps.buffer).toBe(long.steps.buffer);
+    expect(prefixPath(long, 250)).toBe(long);
+    expect(() => prefixPath(long, 251)).toThrow(RangeError);
   });
 });

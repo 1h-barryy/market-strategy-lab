@@ -3,7 +3,7 @@ import { BATCH_SIZE, type AppState } from '../../app/state';
 import { copy } from '../../content/copy';
 import type { KeyInfo, PointerInfo } from '../../core/Input';
 import { disposeObject } from '../../core/Renderer';
-import { finalMean, finalVariance, type Batch, type Path, type WorldParams } from '../../model/process';
+import { finalMean, finalVariance, prefixPath, type Path, type WorldParams } from '../../model/process';
 import { binomialPmf, lag1Autocorrelation, mean, variance, varianceRatio, varianceRatioTheory } from '../../model/stats';
 import type { HudAction, ReadoutRow } from '../../ui/HUD';
 import type { Chapter, ChapterContext } from '../types';
@@ -87,6 +87,8 @@ export class BoardChapter implements Chapter {
   private introRendered = '';
   private unsubscribe: Array<() => void> = [];
   private pmf: number[] = [];
+  /** What the board shows: the world params with n = board days, and each path cut to those days. */
+  private view!: { params: WorldParams; paths: readonly Path[] };
   private batchSummary!: Summary;
   private nextPath = 0;
   private releaseCredit = 0;
@@ -114,7 +116,7 @@ export class BoardChapter implements Chapter {
     const text = copy();
     hud.setHeader(text.header);
     hud.setLegend(text.legend.prefix, text.legend.up, text.legend.down);
-    this.panel = new DevPanel(store.state.params, this.playback, {
+    this.panel = new DevPanel(this.view.params, this.playback, {
       setParams: (changes) => this.setParams(changes),
       reset: () => this.reset(),
       dropInstant: (count) => this.dropInstant(count),
@@ -122,9 +124,10 @@ export class BoardChapter implements Chapter {
     this.panel.setVisible(hud.debugVisible);
     this.controls = new BoardControls({ setParams: (changes) => this.playerSetParams(changes), reset: () => this.reset() });
     hud.controls.replaceChildren(this.controls.element);
-    this.controls.sync(store.state.params);
+    this.controls.sync(this.view.params);
     this.unsubscribe.push(
       store.on('batch', (state) => this.build(state, this.balls?.landed ?? 0)),
+      store.on('boardDays', (state) => this.build(state, this.balls?.landed ?? 0)),
       input.on('pointerdown', this.onPointerDown),
       input.on('pointerup', this.onPointerUp),
       input.on('keydown', this.onKeyDown),
@@ -158,7 +161,7 @@ export class BoardChapter implements Chapter {
     this.unsubscribe = [];
     this.panel?.dispose();
     this.panel = undefined;
-    this.controls?.element.remove();
+    this.controls?.dispose();
     this.controls = undefined;
     this.holdingKey = this.holdingPointer = false;
   }
@@ -175,7 +178,8 @@ export class BoardChapter implements Chapter {
    */
   private build(state: AppState, refill: number): void {
     this.teardownBoard();
-    const { params } = state;
+    const params = { ...state.params, n: state.boardDays };
+    this.view = { params, paths: state.batch.paths.map((path) => prefixPath(path, state.boardDays)) };
     this.mapping = new BoardMapping(params.n);
     this.board = createBoard(this.mapping);
     this.balls = new Balls(this.mapping, BATCH_SIZE);
@@ -184,7 +188,7 @@ export class BoardChapter implements Chapter {
     this.priceLine = new PriceLine(this.mapping);
     this.world.add(this.board, this.balls.group, this.overlay.group, this.priceLine.group);
     this.pmf = binomialPmf(params.n, 0.5 + params.tilt);
-    this.batchSummary = summarize(state.batch.paths);
+    this.batchSummary = summarize(this.view.paths);
     this.nextPath = 0;
     this.releaseCredit = 0;
     this.selected = -1;
@@ -203,18 +207,21 @@ export class BoardChapter implements Chapter {
     this.world.clear();
   }
 
-  private get batch(): Batch {
-    return this.context.store.state.batch;
+  private get paths(): readonly Path[] {
+    return this.view.paths;
   }
 
+  /** World changes go to the store; `n` here means the board's days, which never touch the batch. */
   private setParams(changes: Partial<WorldParams>): void {
     try {
       this.error = '';
-      this.context.store.setParams(changes);
+      const { n, ...world } = changes;
+      if (n !== undefined) this.context.store.setBoardDays(n);
+      this.context.store.setParams(world);
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
-      this.panel?.sync(this.context.store.state.params);
-      this.controls?.sync(this.context.store.state.params);
+      this.panel?.sync(this.view.params);
+      this.controls?.sync(this.view.params);
       this.refreshReadout();
     }
   }
@@ -230,7 +237,7 @@ export class BoardChapter implements Chapter {
     if (allowed.tilt !== undefined && allowed.tilt !== params.tilt) intro = noteMoved(intro, 'mood');
     if (allowed.rho !== undefined && allowed.rho !== params.rho) intro = noteMoved(intro, 'herd');
     this.setParams(allowed);
-    this.controls?.sync(this.context.store.state.params);
+    this.controls?.sync(this.view.params);
     if (intro !== this.intro) this.setIntro(intro);
   }
 
@@ -270,11 +277,11 @@ export class BoardChapter implements Chapter {
   }
 
   private releaseNext(instant = false): boolean {
-    if (this.nextPath >= this.batch.paths.length) {
+    if (this.nextPath >= this.paths.length) {
       this.holdingPointer = this.holdingKey = false;
       return false;
     }
-    this.balls!.release(this.batch.paths[this.nextPath++], instant);
+    this.balls!.release(this.paths[this.nextPath++], instant);
     return true;
   }
 
@@ -354,7 +361,7 @@ export class BoardChapter implements Chapter {
     this.balls!.select(index);
     const path = index >= 0 ? this.balls!.path(index) : undefined;
     if (path) {
-      const { params } = this.context.store.state;
+      const { params } = this.view;
       this.priceLine!.show(path, params.sigmaStep, 3 * params.sigmaStep * Math.sqrt(finalVariance(params)));
     } else {
       this.priceLine!.clear();
@@ -363,8 +370,8 @@ export class BoardChapter implements Chapter {
   }
 
   private refreshReadout(): void {
-    const { hud, store } = this.context;
-    const { params } = store.state;
+    const { hud } = this.context;
+    const { params } = this.view;
     const balls = this.balls!;
     this.readoutTimer = 0;
     this.shownLanded = balls.landed;
@@ -380,7 +387,7 @@ export class BoardChapter implements Chapter {
         : captions[caption.spread];
     const mood = caption.mood === 'up' ? captions.moodUp : caption.mood === 'down' ? captions.moodDown : '';
     hud.setCaption(mood ? `${spread} ${mood}` : spread);
-    hud.setNote(this.nextPath >= this.batch.paths.length ? captions.outOfStocks : '');
+    hud.setNote(this.nextPath >= this.paths.length ? captions.outOfStocks : '');
     hud.setDetail(this.describeSelected(params));
     this.renderIntro();
 
@@ -389,7 +396,7 @@ export class BoardChapter implements Chapter {
     const pi = 0.5 + params.tilt;
     const rows: ReadoutRow[] = [
       ['', 'landed', 'batch', 'theory'],
-      ['balls', String(balls.landed), String(this.batch.paths.length), ''],
+      ['balls', String(balls.landed), String(this.paths.length), ''],
       ['mean final (steps)', signed(landed.mean), signed(batch.mean), signed(finalMean(params))],
       ['sd final (steps)', fmt(landed.sd), fmt(batch.sd), fmt(Math.sqrt(finalVariance(params)))],
       ['  sd if ρ = 0', '', '', fmt(baselineSd)],
@@ -398,7 +405,7 @@ export class BoardChapter implements Chapter {
       ['VR(8)', fmt(landed.vr8), fmt(batch.vr8), fmt(varianceRatioTheory(8, params.rho))],
     ];
     hud.setReadout(rows);
-    const world = `π ${fmt(pi, 3)} · ρ ${signed(params.rho)} · σ ${fmt(params.sigmaStep, 3)} · n ${params.n} · seed ${params.seed}`;
+    const world = `π ${fmt(pi, 3)} · ρ ${signed(params.rho)} · σ ${fmt(params.sigmaStep, 3)} · board days ${params.n} of ${this.context.store.state.params.n} · seed ${params.seed}`;
     const notes = [world, `caption ${caption.spread}${caption.mood ? ` + ${caption.mood}` : ''}`];
     if (balls.inFlight > 0) notes.push(`${balls.inFlight} in flight`);
     if (this.selected >= 0) notes.push(`ball #${this.selected}`);

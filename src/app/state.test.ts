@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BATCH_SIZE, DEFAULT_PARAMS, Store, createState, withParams } from './state';
+import { BATCH_SIZE, DEFAULT_BOARD_DAYS, DEFAULT_PARAMS, PATH_DAYS, Store, createState, withBoardDays, withParams } from './state';
 
 describe('app state', () => {
   it('starts with the default world and a full batch', () => {
@@ -7,6 +7,8 @@ describe('app state', () => {
     expect(state.params).toEqual(DEFAULT_PARAMS);
     expect(state.batch.paths).toHaveLength(BATCH_SIZE);
     expect(state.batch.params).toEqual(DEFAULT_PARAMS);
+    expect(state.batch.paths[0].steps).toHaveLength(PATH_DAYS);
+    expect(state.boardDays).toBe(DEFAULT_BOARD_DAYS);
   });
 
   it('regenerates the batch when parameters change, without mutating the old state', () => {
@@ -37,8 +39,24 @@ describe('app state', () => {
     const store = new Store();
     const listener = vi.fn();
     store.on('batch', listener);
-    store.setParams({ n: 20 });
+    store.setParams({ rho: 0.3 });
     expect(listener).toHaveBeenCalledOnce();
-    expect(listener.mock.calls[0][0].batch.paths[0].steps).toHaveLength(20);
+    expect(listener.mock.calls[0][0].batch.params.rho).toBe(0.3);
+  });
+
+  it('changes board days without regenerating the batch', () => {
+    const store = new Store();
+    const batchListener = vi.fn();
+    const daysListener = vi.fn();
+    store.on('batch', batchListener);
+    store.on('boardDays', daysListener);
+    const batch = store.state.batch;
+    store.setBoardDays(20);
+    expect(store.state.boardDays).toBe(20);
+    expect(store.state.batch).toBe(batch);
+    expect(batchListener).not.toHaveBeenCalled();
+    expect(daysListener).toHaveBeenCalledOnce();
+    expect(() => withBoardDays(store.state, 7)).toThrow(RangeError);
+    expect(() => withBoardDays(store.state, 25)).toThrow(RangeError);
   });
 });

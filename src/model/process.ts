@@ -101,6 +101,18 @@ export function generateBatch(params: WorldParams, count: number): Batch {
   return { params: { ...params }, paths };
 }
 
+/** The first `days` days of a path, as views into the same arrays (no copy). */
+export function prefixPath(path: Path, days: number): Path {
+  if (days === path.steps.length) return path;
+  if (!Number.isInteger(days) || days < 0 || days > path.steps.length) {
+    throw new RangeError(`Cannot take ${days} days of a ${path.steps.length}-day path.`);
+  }
+  const steps = path.steps.subarray(0, days);
+  let final = 0;
+  for (const step of steps) final += step;
+  return { index: path.index, steps, logPrice: path.logPrice.subarray(0, days + 1), final };
+}
+
 /** S_t = S_0·exp(L_t). */
 export function pricePath(path: Path, s0 = 100): Float64Array {
   return path.logPrice.map((l) => s0 * Math.exp(l));
