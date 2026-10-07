@@ -9,22 +9,15 @@
  * constant height change and S_t = S_0·exp(L_t) is labeled on a log scale.
  */
 
+import { BOARD_FRAME, unitsPerStep } from '../../world/shared/layout';
+
 export interface Point {
   x: number;
   y: number;
 }
 
-/** Fixed board frame in scene units. */
-export const FRAME = {
-  width: 10,
-  pegTop: 7,
-  pegBottom: 0.4,
-  binTop: 0,
-  binBottom: -5.5,
-  /** Where balls appear before falling onto the first peg. */
-  dropHeight: 8.4,
-  price: { left: 7, right: 15, top: 2.5, bottom: -5.5 },
-} as const;
+/** Fixed board frame in scene units (shared, so the terrain can line up with it). */
+export const FRAME = BOARD_FRAME;
 
 /** Share of the bin height the tallest stack (or overlay point) may use. */
 const STACK_FILL = 0.92;
@@ -40,7 +33,7 @@ export class BoardMapping {
   readonly hop: number;
 
   constructor(readonly n: number) {
-    this.dx = FRAME.width / (n + 1);
+    this.dx = 2 * unitsPerStep(n);
     this.dy = (FRAME.pegTop - FRAME.pegBottom) / n;
     const cell = Math.min(this.dx, this.dy);
     this.ballRadius = cell * 0.28;

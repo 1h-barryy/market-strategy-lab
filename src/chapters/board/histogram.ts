@@ -18,6 +18,8 @@ export function label(text: string, className = 'scene-label'): CSS2DObject {
  */
 export class BinomialOverlay {
   readonly group = new THREE.Group();
+  /** The overlay itself; hidden until stocks land. Bin labels sit outside it and always show. */
+  private readonly lines = new THREE.Group();
   private readonly ticks: THREE.LineSegments;
   private readonly curve: THREE.Line;
   private readonly labels = new THREE.Group();
@@ -34,8 +36,9 @@ export class BinomialOverlay {
     curveGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bins * 3), 3));
     this.curve = new THREE.Line(curveGeometry, new THREE.LineBasicMaterial({ color: palette.neutral, transparent: true, opacity: 0.35 }));
     this.ticks.frustumCulled = this.curve.frustumCulled = false;
-    this.group.add(this.ticks, this.curve, this.labels, this.legend);
-    this.group.visible = false;
+    this.lines.add(this.ticks, this.curve, this.legend);
+    this.lines.visible = false;
+    this.group.add(this.lines, this.labels);
   }
 
   /** Expected counts per bin and the stack unit they are drawn with. */
@@ -52,10 +55,10 @@ export class BinomialOverlay {
       curve.setXYZ(k, x, y, 0.1);
     });
     ticks.needsUpdate = curve.needsUpdate = true;
-    this.group.visible = expected.some((c) => c > 0);
+    this.lines.visible = expected.some((c) => c > 0);
     const peak = expected.indexOf(Math.max(...expected));
     this.legend.position.set(m.binX(peak) + m.dx * 0.5, m.countY(expected[peak], unit) + 0.35, 0.1);
-    this.legend.visible = this.group.visible;
+    this.legend.visible = this.lines.visible;
   }
 
   /** % price-change labels under the bins (at most ~7, always including the center). */

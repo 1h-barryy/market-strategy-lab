@@ -1,6 +1,6 @@
 import type { Chapter, ChapterContext } from '../chapters/types';
 
-/** Owns the registered chapters and which one is active. Transitions are an instant cut in P0. */
+/** Owns the registered chapters and which one is active. All chapters share one stage; the camera rig is the transition. */
 export class ChapterManager {
   private readonly chapters = new Map<string, Chapter>();
   private readonly loaded = new Set<string>();
@@ -41,7 +41,7 @@ export class ChapterManager {
   }
 
   render(): void {
-    if (this.current) this.context.renderer.render(this.current.scene, this.current.camera);
+    this.context.renderer.render(this.context.stage.scene, this.context.stage.camera);
   }
 
   dispose(): void {

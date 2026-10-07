@@ -1,4 +1,5 @@
 import { BoardChapter } from '../chapters/board/BoardChapter';
+import { TerrainChapter } from '../chapters/terrain/TerrainChapter';
 import type { ChapterContext } from '../chapters/types';
 import { ChapterManager } from '../core/ChapterManager';
 import { Clock } from '../core/Clock';
@@ -7,6 +8,7 @@ import { Renderer } from '../core/Renderer';
 import { copy } from '../content/copy';
 import { HUD } from '../ui/HUD';
 import { cssColor, palette } from '../world/shared/palette';
+import { Stage } from '../world/shared/stage';
 import { Store } from './state';
 
 /** Wires state, renderer, clock, input, HUD and chapters together, and runs the frame loop. */
@@ -14,6 +16,7 @@ export class App {
   private readonly hud: HUD;
   private readonly store = new Store();
   private readonly clock = new Clock();
+  private readonly stage = new Stage();
   private readonly motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   private renderer?: Renderer;
   private input?: Input;
@@ -31,15 +34,24 @@ export class App {
       return;
     }
     this.input = new Input(this.renderer.canvas);
+    this.renderer.onResize((width, height) => this.stage.rig.setAspect(width / height));
     const context: ChapterContext = {
       renderer: this.renderer,
       input: this.input,
       store: this.store,
       hud: this.hud,
       reducedMotion: () => this.motion.matches,
+      stage: this.stage,
+      navigate: (id) => {
+        this.chapters?.goTo(id).catch((error: unknown) => {
+          console.error(error);
+          this.hud.setStatus(`Failed to open chapter: ${String(error)}`, true);
+        });
+      },
     };
     this.chapters = new ChapterManager(context);
     this.chapters.register(new BoardChapter());
+    this.chapters.register(new TerrainChapter());
     this.chapters.goTo('board').then(
       () => this.renderer?.setLoop(this.frame),
       (error: unknown) => {
@@ -52,7 +64,10 @@ export class App {
 
   private frame = (time: number): void => {
     if (!this.chapters) return;
-    this.clock.advance(time, (dt) => this.chapters!.update(dt));
+    this.clock.advance(time, (dt) => {
+      this.chapters!.update(dt);
+      this.stage.rig.update(dt, this.motion.matches);
+    });
     this.chapters.render();
   };
 

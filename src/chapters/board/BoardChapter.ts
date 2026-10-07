@@ -9,7 +9,8 @@ import type { HudAction, ReadoutRow } from '../../ui/HUD';
 import type { Chapter, ChapterContext } from '../types';
 import { Balls } from './balls';
 import { captionFor } from './captions';
-import { BoardControls } from './controls';
+import { CrowdControls } from '../../ui/CrowdControls';
+import { fitDistance, type CameraPose } from '../../world/shared/stage';
 import { BOARD_LIMITS, DevPanel, type Playback } from './devPanel';
 import { BinomialOverlay } from './histogram';
 import { advance, canAdvance, freePlay, locks, noteMoved, startIntro, type IntroState } from './intro';
@@ -24,6 +25,8 @@ import { PriceLine, S0 } from './priceLine';
 const VIEW = { left: -13.5, right: 17.3, bottom: -7.2, top: 9 };
 /** Seconds between HUD refreshes while balls are landing. */
 const READOUT_INTERVAL = 0.25;
+/** Seconds for the camera to glide between the board and other chapters. */
+const TRANSITION_SECONDS = 1.6;
 /** Remembers that the intro was finished or skipped (per browser; a convenience only). */
 const INTRO_KEY = 'market-under-stress:intro-done';
 
@@ -49,6 +52,14 @@ function summarize(paths: readonly Path[]): Summary {
 const fmt = (value: number, digits = 2): string => (Number.isFinite(value) ? value.toFixed(digits) : '—');
 const signed = (value: number, digits = 2): string => (value > 0 ? '+' : '') + fmt(value, digits);
 
+/** Front view of the board, fitted to the window. */
+function boardPose(aspect: number): CameraPose {
+  const distance = fitDistance(VIEW.right - VIEW.left, VIEW.top - VIEW.bottom, aspect, 35) * 1.05;
+  const cx = (VIEW.left + VIEW.right) / 2;
+  const cy = (VIEW.top + VIEW.bottom) / 2;
+  return { position: new THREE.Vector3(cx, cy, distance), target: new THREE.Vector3(cx, cy, 0) };
+}
+
 function readIntroDone(): boolean {
   try {
     return localStorage.getItem(INTRO_KEY) === '1';
@@ -70,9 +81,10 @@ function writeIntroDone(done: boolean): void {
 export class BoardChapter implements Chapter {
   readonly id = 'board';
   readonly title = copy().header.title;
-  readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
   private context!: ChapterContext;
+  /** Only the active chapter writes to the HUD; the board keeps its pile in sync while inactive. */
+  private active = false;
+  private storeSubscriptions: Array<() => void> = [];
   private readonly playback: Playback = { releaseRate: 12, speed: 1 };
   private readonly world = new THREE.Group();
   private mapping!: BoardMapping;
@@ -82,7 +94,7 @@ export class BoardChapter implements Chapter {
   private priceLine?: PriceLine;
   private readonly pickPlane = new THREE.Mesh(new THREE.PlaneGeometry(FRAME.width, FRAME.binTop - FRAME.binBottom), new THREE.MeshBasicMaterial());
   private panel?: DevPanel;
-  private controls?: BoardControls;
+  private controls?: CrowdControls;
   private intro: IntroState = freePlay();
   private introRendered = '';
   private unsubscribe: Array<() => void> = [];
@@ -98,21 +110,29 @@ export class BoardChapter implements Chapter {
   private readoutTimer = 0;
   private shownLanded = -1;
   private error = '';
+  private firstEnter = true;
 
   async load(context: ChapterContext): Promise<void> {
     this.context = context;
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x30343c, 1.6));
-    const key = new THREE.DirectionalLight(0xffffff, 1.8);
-    key.position.set(-4, 10, 12);
-    this.scene.add(key, this.world);
+    this.world.name = 'BoardChapter';
     this.pickPlane.visible = false;
     this.pickPlane.position.set(0, (FRAME.binTop + FRAME.binBottom) / 2, 0);
-    this.scene.add(this.pickPlane);
+    context.stage.scene.add(this.world, this.pickPlane);
+    // Subscribed for the chapter's whole life: the pile stays in sync with the world even while
+    // another chapter (the terrain behind it) is active.
+    this.storeSubscriptions.push(
+      context.store.on('batch', (state) => this.build(state, this.balls?.landed ?? 0)),
+      context.store.on('boardDays', (state) => this.build(state, this.balls?.landed ?? 0)),
+    );
     this.build(context.store.state, 0);
   }
 
   enter(): void {
-    const { hud, input, renderer, store } = this.context;
+    const { hud, input, stage } = this.context;
+    this.active = true;
+    stage.rig.follow(boardPose, this.firstEnter ? 0 : TRANSITION_SECONDS);
+    this.firstEnter = false;
+    this.priceLine!.group.visible = true;
     const text = copy();
     hud.setHeader(text.header);
     hud.setLegend(text.legend.prefix, text.legend.up, text.legend.down);
@@ -122,17 +142,14 @@ export class BoardChapter implements Chapter {
       dropInstant: (count) => this.dropInstant(count),
     });
     this.panel.setVisible(hud.debugVisible);
-    this.controls = new BoardControls({ setParams: (changes) => this.playerSetParams(changes), reset: () => this.reset() });
+    this.controls = new CrowdControls({ setParams: (changes) => this.playerSetParams(changes), reset: () => this.reset() }, { days: true });
     hud.controls.replaceChildren(this.controls.element);
     this.controls.sync(this.view.params);
     this.unsubscribe.push(
-      store.on('batch', (state) => this.build(state, this.balls?.landed ?? 0)),
-      store.on('boardDays', (state) => this.build(state, this.balls?.landed ?? 0)),
       input.on('pointerdown', this.onPointerDown),
       input.on('pointerup', this.onPointerUp),
       input.on('keydown', this.onKeyDown),
       input.on('keyup', this.onKeyUp),
-      renderer.onResize((w, h) => this.fitCamera(w, h)),
     );
     if (readIntroDone()) this.setIntro(freePlay());
     else this.replayIntro();
@@ -157,6 +174,13 @@ export class BoardChapter implements Chapter {
   }
 
   exit(): void {
+    this.active = false;
+    // Stocks still falling land at once, so the pile is complete while the terrain is on screen.
+    this.balls?.landAll();
+    this.syncOverlay();
+    this.select(-1);
+    this.priceLine!.group.visible = false;
+    this.introRendered = '';
     this.unsubscribe.forEach((off) => off());
     this.unsubscribe = [];
     this.panel?.dispose();
@@ -167,8 +191,12 @@ export class BoardChapter implements Chapter {
   }
 
   dispose(): void {
+    this.storeSubscriptions.forEach((off) => off());
+    this.storeSubscriptions = [];
     this.teardownBoard();
-    disposeObject(this.scene);
+    disposeObject(this.pickPlane);
+    this.world.removeFromParent();
+    this.pickPlane.removeFromParent();
   }
 
   /**
@@ -261,13 +289,17 @@ export class BoardChapter implements Chapter {
   }
 
   private renderIntro(): void {
+    if (!this.active) return;
     const ready = canAdvance(this.intro, this.balls?.landed ?? 0);
     const key = `${this.intro.step}:${ready}`;
     if (key === this.introRendered) return;
     this.introRendered = key;
     const text = copy().intro;
     if (this.intro.step === 'free') {
-      this.context.hud.setIntro(text.free.lines, [{ label: text.replay, kind: 'link', onClick: () => this.replayIntro() }]);
+      this.context.hud.setIntro(text.free.lines, [
+        { label: text.continueToTerrain, kind: 'primary', onClick: () => this.context.navigate('terrain') },
+        { label: text.replay, kind: 'link', onClick: () => this.replayIntro() },
+      ]);
       return;
     }
     const actions: HudAction[] = [];
@@ -303,7 +335,7 @@ export class BoardChapter implements Chapter {
 
   private onPointerDown = (event: PointerInfo): void => {
     if (event.button !== 0) return;
-    const hit = this.context.input.pick(this.camera, [this.pickPlane])[0];
+    const hit = this.context.input.pick(this.context.stage.camera, [this.pickPlane])[0];
     if (hit) {
       const bin = this.mapping.binAtX(hit.point.x);
       const index = bin < 0 ? -1 : this.balls!.ballAt(bin, this.mapping.slotAtY(hit.point.y, this.balls!.stackUnit));
@@ -370,6 +402,7 @@ export class BoardChapter implements Chapter {
   }
 
   private refreshReadout(): void {
+    if (!this.active) return;
     const { hud } = this.context;
     const { params } = this.view;
     const balls = this.balls!;
@@ -434,17 +467,4 @@ export class BoardChapter implements Chapter {
     };
   }
 
-  private fitCamera(width: number, height: number): void {
-    const aspect = width / height;
-    this.camera.aspect = aspect;
-    const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
-    const w = VIEW.right - VIEW.left;
-    const h = VIEW.top - VIEW.bottom;
-    const distance = Math.max(h / 2 / Math.tan(halfFov), w / 2 / (Math.tan(halfFov) * aspect)) * 1.05;
-    const cx = (VIEW.left + VIEW.right) / 2;
-    const cy = (VIEW.top + VIEW.bottom) / 2;
-    this.camera.position.set(cx, cy, distance);
-    this.camera.lookAt(cx, cy, 0);
-    this.camera.updateProjectionMatrix();
-  }
 }

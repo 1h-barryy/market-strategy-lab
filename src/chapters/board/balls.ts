@@ -142,6 +142,13 @@ export class Balls {
     this.flush();
   }
 
+  /** Lands every ball still in flight at once (e.g. when the board stops being the active chapter). */
+  landAll(): void {
+    for (const ball of this.balls) if (!ball.landed) this.land(ball);
+    this.trail.count = 0;
+    this.flush();
+  }
+
   /** Re-lays every landed ball if the stack scale changed, and uploads instance data. */
   flush(): void {
     if (this.landedDirty) {

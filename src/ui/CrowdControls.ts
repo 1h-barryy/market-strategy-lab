@@ -1,18 +1,17 @@
-import { copy, type Level, type SliderText } from '../../content/copy';
-import type { WorldParams } from '../../model/process';
-import { BOARD_DAYS } from '../../app/state';
-import { BOARD_LIMITS } from './devPanel';
+import { BOARD_DAYS } from '../app/state';
+import { copy, type Level, type SliderText } from '../content/copy';
+import { PARAM_RANGES, type WorldParams } from '../model/process';
 
 /** Sliders run −100..100 with the neutral setting at 0, whatever the parameter's range. */
 const SLIDER_MAX = 100;
 
 /** Slider position → tilt, linear over [−0.1, 0.1]. */
 export function sliderToTilt(position: number): number {
-  return round3((position / SLIDER_MAX) * BOARD_LIMITS.tilt.max);
+  return round3((position / SLIDER_MAX) * PARAM_RANGES.tilt.max);
 }
 
 export function tiltToSlider(tilt: number): number {
-  return Math.round((tilt / BOARD_LIMITS.tilt.max) * SLIDER_MAX);
+  return Math.round((tilt / PARAM_RANGES.tilt.max) * SLIDER_MAX);
 }
 
 /**
@@ -21,11 +20,11 @@ export function tiltToSlider(tilt: number): number {
  */
 export function sliderToRho(position: number): number {
   const fraction = position / SLIDER_MAX;
-  return round3(fraction < 0 ? -fraction * BOARD_LIMITS.rho.min : fraction * BOARD_LIMITS.rho.max);
+  return round3(fraction < 0 ? -fraction * PARAM_RANGES.rho.min : fraction * PARAM_RANGES.rho.max);
 }
 
 export function rhoToSlider(rho: number): number {
-  return Math.round((rho < 0 ? rho / -BOARD_LIMITS.rho.min : rho / BOARD_LIMITS.rho.max) * SLIDER_MAX);
+  return Math.round((rho < 0 ? rho / -PARAM_RANGES.rho.min : rho / PARAM_RANGES.rho.max) * SLIDER_MAX);
 }
 
 /** How far from neutral a slider is, in words-sized steps: 0 neutral, 1 a little, 2 clearly, 3 strongly. */
@@ -39,8 +38,15 @@ function round3(value: number): number {
 }
 
 export interface ControlHandlers {
+  /** World changes; `n` means the board's days. */
   setParams(changes: Partial<WorldParams>): void;
-  reset(): void;
+  /** Present → a "Start over" button is shown. */
+  reset?: () => void;
+}
+
+export interface ControlOptions {
+  /** Show the Days stepper (Chapter 1 only). */
+  days: boolean;
 }
 
 interface Slider {
@@ -50,8 +56,8 @@ interface Slider {
   text: SliderText;
 }
 
-/** Player controls: Mood, Yesterday (internally herd/ρ) and Days. No numbers except days. */
-export class BoardControls {
+/** Player controls for the crowd: Mood, Yesterday (internally herd/ρ) and optionally Days. No numbers except days. */
+export class CrowdControls {
   readonly element = document.createElement('div');
   private readonly mood: Slider;
   private readonly herd: Slider;
@@ -61,9 +67,9 @@ export class BoardControls {
   private pending: Partial<WorldParams> = {};
   private frame = 0;
 
-  constructor(private readonly handlers: ControlHandlers) {
+  constructor(private readonly handlers: ControlHandlers, options: ControlOptions) {
     const text = copy().controls;
-    this.element.className = 'board-controls';
+    this.element.className = 'board-controls crowd-controls';
     this.mood = this.slider('mood', text.mood, (position) => this.schedule({ tilt: sliderToTilt(position) }));
     this.herd = this.slider('herd', text.herd, (position) => this.schedule({ rho: sliderToRho(position) }));
 
@@ -79,12 +85,16 @@ export class BoardControls {
     fewer.addEventListener('click', () => this.stepDays(-1));
     more.addEventListener('click', () => this.stepDays(1));
 
-    const reset = document.createElement('button');
-    reset.type = 'button';
-    reset.className = 'reset link';
-    reset.textContent = text.reset;
-    reset.addEventListener('click', () => handlers.reset());
-    this.element.append(this.mood.input.closest('.control')!, this.herd.input.closest('.control')!, days, reset);
+    this.element.append(this.mood.input.closest('.control')!, this.herd.input.closest('.control')!);
+    if (options.days) this.element.append(days);
+    if (handlers.reset) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'reset link';
+      reset.textContent = text.reset;
+      reset.addEventListener('click', () => handlers.reset?.());
+      this.element.append(reset);
+    }
   }
 
   /** Reflect the current world (after keyboard, debug panel or intro changes). */

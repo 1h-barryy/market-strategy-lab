@@ -14,6 +14,7 @@ export interface Copy {
     next: string;
     skip: string;
     replay: string;
+    continueToTerrain: string;
   };
   controls: {
     mood: SliderText;
@@ -91,6 +92,7 @@ const en: Copy = {
     next: 'Next',
     skip: 'Skip intro',
     replay: 'Replay intro',
+    continueToTerrain: 'Continue to the terrain →',
   },
   controls: {
     mood: {
