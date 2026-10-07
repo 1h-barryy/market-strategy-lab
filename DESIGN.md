@@ -52,9 +52,9 @@ Model	Player sees
 density surface over (day, position)	the terrain: "where stocks are, day after day"
 density	height: "how many stocks are there"
 spread growing with t	the valley opening up: "the future getting less certain"
-ρ = 0 surface, same π	ghost surface: "if the crowd ignored yesterday" (same wording as Chapter 1)
+ρ = 0 surface, same π	ghost surface: "if the crowd ignored yesterday" (same wording as Chapter 1); a constant-height ridge because heights are scaled per day by the ghost's peak
 VR(q) > 1 / < 1	"Chases it" makes the valley open faster than the ghost; "Turns against it" makes it open slower. Said in plain words, and only once enough data supports it.
-interquartile range per day	"the middle half of stocks"
+interquartile range per day	"the middle half of stocks" (lines along the valley)
 
 Player text always says "stock", never "ball"; "ball" appears only in code and the debug overlay. Captions describe the pile overall ("pushing stocks up overall"), never every stock.
 
@@ -192,10 +192,10 @@ The terrain lives physically behind the board; there is no scene switch. Enterin
 The surface
 Left-right: the same position axis as the board's bins, aligned exactly in world space (one step = half a bin, so a stock's position on the terrain is its running count of up minus down days, and the % labels are the same price changes the board shows).
 Depth: time, day 0 at the board, day 250 at the far end.
-Height: how many stocks are at that position on that day (density per step, from the batch).
+Height: how many stocks are at that position on that day, relative to the ghost. For each day t, both the terrain's and the ghost's density are divided by the ghost's peak density on day t (the same factor for both). Raw density makes day 1 roughly √250 ≈ 16× taller than day 250, flattening the second half of the year where the ghost comparison matters most; per-day scaling makes the ghost a constant-height ridge, a stable reference, so "Chases it" reads lower and wider than the ghost and "Turns against it" taller and narrower. Within a day, shapes stay exact, and the valley still widens as the future gets less certain. The surface starts at day 1 (day 0 is a single spike). Raw densities remain in the debug overlay.
 The slice at day n_board lines up with the board's pile: same shape, same place.
 
-Built from the shared batch (2,000 stocks × 250 days): a histogram of positions per day, smoothed with a small Gaussian kernel (it also removes the odd/even-day lattice zig-zag), displaced into a mesh. Mood and Yesterday stay available in Chapter 2; changing them reshapes terrain and ghost with a short visual morph (results change instantly; only the drawing eases).
+Built from the shared batch (2,000 stocks × 250 days): a histogram of positions per day, smoothed with a small Gaussian kernel across positions (sd 1.5 steps; it also removes the odd/even-day lattice zig-zag) and across days with an sd of 2% of the day (none before day 25, about ±5 days at day 250, where 2,000 stocks are spread thin and spreads change by under 1% over that window), displaced into a mesh. Color follows height: dark where no stocks are, luminous at the ghost's peak. Mood and Yesterday stay available in Chapter 2; changing them reshapes terrain and ghost with a short visual morph (results change instantly; only the drawing eases).
 
 % axis extent
 Over 250 days stocks spread much wider than over n_board days (at "Ignores it", ±3 sd is ±47 steps; at "Chases it hard" ±203; Mood at its extreme shifts the center by 50 steps). The terrain keeps the board's linear scale and spans ±100 steps around the start, about 4–11× the board's width depending on Days. Linear keeps the honest message: how fast the valley opens is exactly what the player is reading, and any compressed axis would distort it. Stocks beyond ±100 steps are not dropped: each day's share beyond either edge is drawn as an "off the map" ledge at that edge, and counted in every caption and statistic. Days is only adjustable in Chapter 1, so the terrain's scale is fixed while it is on screen.
@@ -206,8 +206,8 @@ Terrain wider than the ghost → the crowd chases yesterday; the valley opens fa
 Terrain narrower than the ghost → the crowd turns against yesterday; the valley opens slower.
 Matches the ghost → no habit visible.
 
-Floor lines
-On the floor, two pairs of lines trace where the middle half of stocks are on each day: solid for the terrain, dashed for the ghost. Their opening angle is the valley opening up; their divergence is the variance ratio made visible without numbers.
+Lines along the valley
+Two pairs of lines trace where the middle half of stocks are on each day: solid ones riding on the terrain, dashed ones on the ghost (on the floor they were hidden under the hills). Their opening angle is the valley opening up; their divergence is the variance ratio made visible without numbers. The ghost is also drawn as dashed cross-sections every 10 days over a faint surface, so it stays visible where the terrain is lower and pokes out where it is wider.
 
 Interaction
 Day scrub: a Day slider (1–250), or click/drag along the terrain's floor. The chosen day's slice is highlighted on the terrain and on the ghost, with a plain caption about that day.

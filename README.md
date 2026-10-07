@@ -4,7 +4,7 @@
 
 ## What this project does
 
-**Prototype P0.5 (see `DESIGN.md` §11):** Chapter 1 (The Board) only. The market is a pinball machine: each ball is a stock, each row of pegs a trading day, and a crowd with a Mood and a reaction to Yesterday pushes each stock up or down. Under the hood each ball is one path of a seeded two-state Markov step process (drift and inertia). Players set Mood, Yesterday and Days with plain-language controls, follow a short skippable intro, read live captions that compare the pile with the "If the crowd ignored yesterday" outline, and can click a landed stock to see its price over the days. Exact statistics and the developer panel are in a debug overlay (D key). Chapters 2 (Terrain) and 3 (Test) are not implemented.
+**Prototype P1 (see `DESIGN.md` §11):** Chapters 1 (The Board) and 2 (The Terrain). The market is a pinball machine: each ball is a stock, each row of pegs a trading day, and a crowd with a Mood and a reaction to Yesterday pushes each stock up or down. Under the hood each stock is a 250-day path of a seeded two-state Markov step process (drift and inertia); the board shows its first 8–24 days. Behind the board, the terrain shows where all 2,000 stocks are on every day of the year against a ghost of a crowd that ignores yesterday, with a day scrub, plain-language captions and a few stocks walking their year. Exact statistics and the developer panel are in a debug overlay (D key). Chapter 3 (The Test) is not implemented.
 
 <!-- Write 2–4 sentences: the user configures which rule, tests what, and sees which results. Distinguish implemented features from plans. -->
 
@@ -48,14 +48,15 @@ src/
 ├── main.ts
 ├── app/                 App wiring and frame loop; state (world params + current batch)
 ├── core/                Renderer, fixed-step Clock, Input/picking, ChapterManager, events
-├── model/               Pure TypeScript, no Three.js: random.ts, process.ts, stats.ts (+ tests)
+├── model/               Pure TypeScript, no Three.js: random, process, stats, evidence (caption rules) + tests
 ├── content/             copy.ts: every player-facing string
 ├── chapters/
 │   ├── types.ts         Chapter interface
-│   └── board/           Chapter 1: mapping.ts (model → scene), pegs, balls + trails, overlay, price line,
-│                        captions (tested rules), intro, player controls, dev panel
-├── world/shared/        palette.ts (semantic colors)
-└── ui/                  HUD overlay and styles
+│   ├── board/           Chapter 1: mapping.ts (model → scene), pegs, balls + trails, overlay, price line,
+│   │                    intro, dev panel
+│   └── terrain/         Chapter 2: mapping.ts, surfaces (terrain, ghost, lines, slice), walkers, captions, intro
+├── world/shared/        stage (shared scene + camera rig), layout (board/terrain alignment), palette
+└── ui/                  HUD overlay, crowd controls (Mood, Yesterday, Days), styles
 ```
 
 ## Data, assumptions, and limitations
