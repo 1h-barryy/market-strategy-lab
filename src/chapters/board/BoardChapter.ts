@@ -1,25 +1,31 @@
 import * as THREE from 'three';
 import { BATCH_SIZE, type AppState } from '../../app/state';
+import { copy } from '../../content/copy';
 import type { KeyInfo, PointerInfo } from '../../core/Input';
 import { disposeObject } from '../../core/Renderer';
 import { finalMean, finalVariance, type Batch, type Path, type WorldParams } from '../../model/process';
 import { binomialPmf, lag1Autocorrelation, mean, variance, varianceRatio, varianceRatioTheory } from '../../model/stats';
-import type { ReadoutRow } from '../../ui/HUD';
+import type { HudAction, ReadoutRow } from '../../ui/HUD';
 import type { Chapter, ChapterContext } from '../types';
 import { Balls } from './balls';
+import { captionFor } from './captions';
+import { BoardControls } from './controls';
 import { BOARD_LIMITS, DevPanel, type Playback } from './devPanel';
 import { BinomialOverlay } from './histogram';
+import { advance, canAdvance, freePlay, locks, noteMoved, startIntro, type IntroState } from './intro';
 import { BoardMapping, FRAME } from './mapping';
 import { createBoard } from './pegs';
 import { PriceLine, S0 } from './priceLine';
 
 /**
  * Scene bounds the camera keeps in view. The left margin leaves room for the HUD column so it
- * never covers the board; the price panel sits low on the right, under the dev panel.
+ * never covers the board; the price panel sits low on the right.
  */
 const VIEW = { left: -13.5, right: 17.3, bottom: -7.2, top: 9 };
-/** Seconds between HUD readout refreshes while balls are landing. */
+/** Seconds between HUD refreshes while balls are landing. */
 const READOUT_INTERVAL = 0.25;
+/** Remembers that the intro was finished or skipped (per browser; a convenience only). */
+const INTRO_KEY = 'market-under-stress:intro-done';
 
 interface Summary {
   mean: number;
@@ -43,10 +49,27 @@ function summarize(paths: readonly Path[]): Summary {
 const fmt = (value: number, digits = 2): string => (Number.isFinite(value) ? value.toFixed(digits) : '—');
 const signed = (value: number, digits = 2): string => (value > 0 ? '+' : '') + fmt(value, digits);
 
-/** Chapter 1 — The Board: the player builds the market by dropping balls through the pegs. */
+function readIntroDone(): boolean {
+  try {
+    return localStorage.getItem(INTRO_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeIntroDone(done: boolean): void {
+  try {
+    if (done) localStorage.setItem(INTRO_KEY, '1');
+    else localStorage.removeItem(INTRO_KEY);
+  } catch {
+    // Storage unavailable: the intro simply shows again next time.
+  }
+}
+
+/** Chapter 1 — The Board: the player sets the crowd and drops stocks through the days. */
 export class BoardChapter implements Chapter {
   readonly id = 'board';
-  readonly title = 'Chapter 1 · The Board';
+  readonly title = copy().header.title;
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
   private context!: ChapterContext;
@@ -59,6 +82,9 @@ export class BoardChapter implements Chapter {
   private priceLine?: PriceLine;
   private readonly pickPlane = new THREE.Mesh(new THREE.PlaneGeometry(FRAME.width, FRAME.binTop - FRAME.binBottom), new THREE.MeshBasicMaterial());
   private panel?: DevPanel;
+  private controls?: BoardControls;
+  private intro: IntroState = freePlay();
+  private introRendered = '';
   private unsubscribe: Array<() => void> = [];
   private pmf: number[] = [];
   private batchSummary!: Summary;
@@ -80,32 +106,38 @@ export class BoardChapter implements Chapter {
     this.pickPlane.visible = false;
     this.pickPlane.position.set(0, (FRAME.binTop + FRAME.binBottom) / 2, 0);
     this.scene.add(this.pickPlane);
-    this.build(context.store.state);
+    this.build(context.store.state, 0);
   }
 
   enter(): void {
     const { hud, input, renderer, store } = this.context;
-    hud.setTitle(this.title);
-    hud.setHint('Click or hold (or hold Space) to drop balls. Each ball is one price path. Click a landed ball to inspect it. ←/→ tilt · ↑/↓ ρ · R reset · Esc deselect');
+    const text = copy();
+    hud.setHeader(text.header);
+    hud.setLegend(text.legend.prefix, text.legend.up, text.legend.down);
     this.panel = new DevPanel(store.state.params, this.playback, {
       setParams: (changes) => this.setParams(changes),
       reset: () => this.reset(),
       dropInstant: (count) => this.dropInstant(count),
     });
+    this.panel.setVisible(hud.debugVisible);
+    this.controls = new BoardControls({ setParams: (changes) => this.playerSetParams(changes), reset: () => this.reset() });
+    hud.controls.replaceChildren(this.controls.element);
+    this.controls.sync(store.state.params);
     this.unsubscribe.push(
-      store.on('batch', (state) => this.build(state)),
+      store.on('batch', (state) => this.build(state, this.balls?.landed ?? 0)),
       input.on('pointerdown', this.onPointerDown),
       input.on('pointerup', this.onPointerUp),
       input.on('keydown', this.onKeyDown),
       input.on('keyup', this.onKeyUp),
       renderer.onResize((w, h) => this.fitCamera(w, h)),
     );
+    if (readIntroDone()) this.setIntro(freePlay());
+    else this.replayIntro();
     this.refreshReadout();
   }
 
   update(dt: number): void {
     const balls = this.balls!;
-    const playDt = dt * this.playback.speed;
     if (this.holdingPointer || this.holdingKey) {
       this.releaseCredit += dt * this.playback.releaseRate;
       while (this.releaseCredit >= 1) {
@@ -114,7 +146,7 @@ export class BoardChapter implements Chapter {
       }
     }
     const reduced = this.context.reducedMotion();
-    balls.update(playDt, reduced);
+    balls.update(dt * this.playback.speed, reduced);
     this.syncOverlay();
     this.priceLine!.update(dt, reduced);
     this.readoutTimer += dt;
@@ -126,6 +158,8 @@ export class BoardChapter implements Chapter {
     this.unsubscribe = [];
     this.panel?.dispose();
     this.panel = undefined;
+    this.controls?.element.remove();
+    this.controls = undefined;
     this.holdingKey = this.holdingPointer = false;
   }
 
@@ -134,8 +168,12 @@ export class BoardChapter implements Chapter {
     disposeObject(this.scene);
   }
 
-  /** (Re)builds everything that depends on the batch. Any change of parameters resets the board. */
-  private build(state: AppState): void {
+  /**
+   * (Re)builds everything that depends on the batch. `refill` stocks are landed instantly from the
+   * new batch, so changing the crowd reshapes the pile at the same size (every stock on the board
+   * always comes from the current settings). Stocks in flight are dropped.
+   */
+  private build(state: AppState, refill: number): void {
     this.teardownBoard();
     const { params } = state;
     this.mapping = new BoardMapping(params.n);
@@ -144,7 +182,7 @@ export class BoardChapter implements Chapter {
     this.overlay = new BinomialOverlay(this.mapping);
     this.overlay.setLabels(params.sigmaStep);
     this.priceLine = new PriceLine(this.mapping);
-    this.world.add(this.board, this.balls.mesh, this.overlay.group, this.priceLine.group);
+    this.world.add(this.board, this.balls.group, this.overlay.group, this.priceLine.group);
     this.pmf = binomialPmf(params.n, 0.5 + params.tilt);
     this.batchSummary = summarize(state.batch.paths);
     this.nextPath = 0;
@@ -152,7 +190,9 @@ export class BoardChapter implements Chapter {
     this.selected = -1;
     this.shownLanded = -1;
     this.panel?.sync(params);
-    this.refreshReadout();
+    this.controls?.sync(params);
+    if (refill > 0) this.dropInstant(refill);
+    else this.refreshReadout();
   }
 
   private teardownBoard(): void {
@@ -174,13 +214,59 @@ export class BoardChapter implements Chapter {
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
       this.panel?.sync(this.context.store.state.params);
+      this.controls?.sync(this.context.store.state.params);
       this.refreshReadout();
     }
   }
 
-  /** Replays the same batch from ball 0. New balls need a new seed. */
+  /** Player-facing changes respect the intro's locks and count as "tried this control". */
+  private playerSetParams(changes: Partial<WorldParams>): void {
+    const locked = locks(this.intro.step);
+    const allowed = { ...changes };
+    if (locked.mood) delete allowed.tilt;
+    if (locked.herd) delete allowed.rho;
+    const { params } = this.context.store.state;
+    let intro = this.intro;
+    if (allowed.tilt !== undefined && allowed.tilt !== params.tilt) intro = noteMoved(intro, 'mood');
+    if (allowed.rho !== undefined && allowed.rho !== params.rho) intro = noteMoved(intro, 'herd');
+    this.setParams(allowed);
+    this.controls?.sync(this.context.store.state.params);
+    if (intro !== this.intro) this.setIntro(intro);
+  }
+
+  /** Clears the board; the same stocks will fall again. New stocks need a new seed (debug). */
   private reset(): void {
-    this.build(this.context.store.state);
+    this.build(this.context.store.state, 0);
+  }
+
+  private replayIntro(): void {
+    writeIntroDone(false);
+    this.setParams({ tilt: 0, rho: 0 });
+    this.reset();
+    this.setIntro(startIntro());
+  }
+
+  private setIntro(state: IntroState): void {
+    this.intro = state;
+    if (state.step === 'free') writeIntroDone(true);
+    this.controls?.setLocked(locks(state.step));
+    this.renderIntro();
+  }
+
+  private renderIntro(): void {
+    const ready = canAdvance(this.intro, this.balls?.landed ?? 0);
+    const key = `${this.intro.step}:${ready}`;
+    if (key === this.introRendered) return;
+    this.introRendered = key;
+    const text = copy().intro;
+    if (this.intro.step === 'free') {
+      this.context.hud.setIntro(text.free.lines, [{ label: text.replay, kind: 'link', onClick: () => this.replayIntro() }]);
+      return;
+    }
+    const actions: HudAction[] = [];
+    if (ready) actions.push({ label: text.next, kind: 'primary', onClick: () => this.setIntro(advance(this.intro)) });
+    actions.push({ label: text.skip, kind: 'link', onClick: () => this.setIntro(freePlay()) });
+    this.context.hud.setIntro(text.steps[this.intro.step - 1].lines, actions);
   }
 
   private releaseNext(instant = false): boolean {
@@ -233,7 +319,7 @@ export class BoardChapter implements Chapter {
     const nudge = (key: 'tilt' | 'rho', delta: number): void => {
       const { min, max } = BOARD_LIMITS[key];
       const value = Math.round(Math.min(max, Math.max(min, params[key] + delta)) * 1000) / 1000;
-      this.setParams({ [key]: value });
+      this.playerSetParams({ [key]: value });
     };
     switch (event.code) {
       case 'Space':
@@ -248,6 +334,7 @@ export class BoardChapter implements Chapter {
       case 'ArrowUp': nudge('rho', 0.1); break;
       case 'ArrowDown': nudge('rho', -0.1); break;
       case 'KeyR': this.reset(); break;
+      case 'KeyD': this.toggleDebug(); break;
       case 'Escape': this.select(-1); break;
     }
   };
@@ -255,6 +342,12 @@ export class BoardChapter implements Chapter {
   private onKeyUp = (event: KeyInfo): void => {
     if (event.code === 'Space') this.holdingKey = false;
   };
+
+  private toggleDebug(): void {
+    const visible = !this.context.hud.debugVisible;
+    this.context.hud.setDebugVisible(visible);
+    this.panel?.setVisible(visible);
+  }
 
   private select(index: number): void {
     this.selected = index;
@@ -276,6 +369,22 @@ export class BoardChapter implements Chapter {
     this.readoutTimer = 0;
     this.shownLanded = balls.landed;
     const landed = summarize(balls.landedPaths());
+    const text = copy();
+
+    // Player layer: caption, note, inspected stock.
+    const baselineSd = Math.sqrt(finalVariance({ ...params, rho: 0 }));
+    const caption = captionFor({ landed: balls.landed, mean: landed.mean, sd: landed.sd, baselineSd });
+    const captions = text.captions;
+    const spread = caption.spread === 'needMore' ? captions.needMore(balls.landed)
+      : caption.spread === 'same' && this.intro.step === 1 ? captions.bell
+        : captions[caption.spread];
+    const mood = caption.mood === 'up' ? captions.moodUp : caption.mood === 'down' ? captions.moodDown : '';
+    hud.setCaption(mood ? `${spread} ${mood}` : spread);
+    hud.setNote(this.nextPath >= this.batch.paths.length ? captions.outOfStocks : '');
+    hud.setDetail(this.describeSelected(params));
+    this.renderIntro();
+
+    // Debug layer: exact readouts in model terms.
     const batch = this.batchSummary;
     const pi = 0.5 + params.tilt;
     const rows: ReadoutRow[] = [
@@ -283,39 +392,39 @@ export class BoardChapter implements Chapter {
       ['balls', String(balls.landed), String(this.batch.paths.length), ''],
       ['mean final (steps)', signed(landed.mean), signed(batch.mean), signed(finalMean(params))],
       ['sd final (steps)', fmt(landed.sd), fmt(batch.sd), fmt(Math.sqrt(finalVariance(params)))],
-      ['  sd if ρ = 0', '', '', fmt(2 * Math.sqrt(params.n * pi * (1 - pi)))],
+      ['  sd if ρ = 0', '', '', fmt(baselineSd)],
       ['lag-1 autocorr', signed(landed.lag1), signed(batch.lag1), signed(params.rho)],
       ['VR(4)', fmt(landed.vr4), fmt(batch.vr4), fmt(varianceRatioTheory(4, params.rho))],
       ['VR(8)', fmt(landed.vr8), fmt(batch.vr8), fmt(varianceRatioTheory(8, params.rho))],
     ];
     hud.setReadout(rows);
-    hud.setDetail(this.describeSelected(params));
     const world = `π ${fmt(pi, 3)} · ρ ${signed(params.rho)} · σ ${fmt(params.sigmaStep, 3)} · n ${params.n} · seed ${params.seed}`;
-    const notes = [world];
+    const notes = [world, `caption ${caption.spread}${caption.mood ? ` + ${caption.mood}` : ''}`];
     if (balls.inFlight > 0) notes.push(`${balls.inFlight} in flight`);
-    if (this.nextPath >= this.batch.paths.length) notes.push('batch used up: R replays it, a new seed draws new balls');
+    if (this.selected >= 0) notes.push(`ball #${this.selected}`);
+    if (this.priceLine?.scaleExtended) notes.push('price scale widened beyond ±3 sd');
     hud.setStatus(this.error ? `${this.error}\n${world}` : notes.join(' · '), this.error !== '');
   }
 
-  private describeSelected(params: WorldParams): string {
+  private describeSelected(params: WorldParams): { title: string; lines: string[] } | null {
     const path = this.selected >= 0 ? this.balls!.path(this.selected) : undefined;
-    if (!path) return '';
-    const arrows = Array.from(path.steps, (s) => (s > 0 ? '↗' : '↘')).join('');
+    if (!path) return null;
     let longest = 0;
+    let longestUp = true;
     let run = 0;
     for (let t = 0; t < path.steps.length; t++) {
       run = t > 0 && path.steps[t] === path.steps[t - 1] ? run + 1 : 1;
-      longest = Math.max(longest, run);
+      if (run > longest) {
+        longest = run;
+        longestUp = path.steps[t] > 0;
+      }
     }
-    const ups = path.steps.reduce((sum, s) => sum + (s > 0 ? 1 : 0), 0);
-    const logReturn = params.sigmaStep * path.final;
-    const lines = [
-      `ball #${path.index}  ${arrows}`,
-      `final ${signed(path.final, 0)} steps · log-return ${signed(logReturn * 100, 1)}% · S_n ${(S0 * Math.exp(logReturn)).toFixed(2)}`,
-      `up-steps ${ups}/${path.steps.length} · longest run ${longest}`,
-    ];
-    if (this.priceLine?.scaleExtended) lines.push('price scale widened beyond ±3 sd to fit this path');
-    return lines.join('\n');
+    const end = S0 * Math.exp(params.sigmaStep * path.final);
+    const text = copy().stock;
+    return {
+      title: text.title(path.steps.length),
+      lines: [text.summary(S0, end, end / S0 - 1), text.streak(longest, longestUp)],
+    };
   }
 
   private fitCamera(width: number, height: number): void {

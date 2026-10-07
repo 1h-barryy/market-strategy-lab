@@ -4,7 +4,7 @@
 
 ## What this project does
 
-**Prototype P0 (see `DESIGN.md` §11):** Chapter 1 (The Board) only. A Galton board in Three.js where each ball is one simulated price path from a seeded two-state Markov step process with drift (tilt) and inertia (ρ). Bins fill against the analytic ρ = 0 binomial overlay, a landed ball can be inspected as a price line, and a HUD shows measured vs. theoretical mean/sd, lag-1 autocorrelation and variance ratios. Parameters are changed through a temporary lil-gui dev panel and the keyboard. Chapters 2 (Terrain) and 3 (Test) are not implemented.
+**Prototype P0.5 (see `DESIGN.md` §11):** Chapter 1 (The Board) only. The market is a pinball machine: each ball is a stock, each row of pegs a trading day, and a crowd with a Mood and a reaction to Yesterday pushes each stock up or down. Under the hood each ball is one path of a seeded two-state Markov step process (drift and inertia). Players set Mood, Yesterday and Days with plain-language controls, follow a short skippable intro, read live captions that compare the pile with the "If the crowd ignored yesterday" outline, and can click a landed stock to see its price over the days. Exact statistics and the developer panel are in a debug overlay (D key). Chapters 2 (Terrain) and 3 (Test) are not implemented.
 
 <!-- Write 2–4 sentences: the user configures which rule, tests what, and sees which results. Distinguish implemented features from plans. -->
 
@@ -49,9 +49,11 @@ src/
 ├── app/                 App wiring and frame loop; state (world params + current batch)
 ├── core/                Renderer, fixed-step Clock, Input/picking, ChapterManager, events
 ├── model/               Pure TypeScript, no Three.js: random.ts, process.ts, stats.ts (+ tests)
+├── content/             copy.ts: every player-facing string
 ├── chapters/
 │   ├── types.ts         Chapter interface
-│   └── board/           Chapter 1: mapping.ts (model → scene), pegs, balls, overlay, price line, dev panel
+│   └── board/           Chapter 1: mapping.ts (model → scene), pegs, balls + trails, overlay, price line,
+│                        captions (tested rules), intro, player controls, dev panel
 ├── world/shared/        palette.ts (semantic colors)
 └── ui/                  HUD overlay and styles
 ```

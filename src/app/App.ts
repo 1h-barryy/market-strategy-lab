@@ -4,6 +4,7 @@ import { ChapterManager } from '../core/ChapterManager';
 import { Clock } from '../core/Clock';
 import { Input } from '../core/Input';
 import { Renderer } from '../core/Renderer';
+import { copy } from '../content/copy';
 import { HUD } from '../ui/HUD';
 import { cssColor, palette } from '../world/shared/palette';
 import { Store } from './state';
@@ -21,6 +22,7 @@ export class App {
   constructor(private readonly root: HTMLElement) {
     applyPalette();
     this.hud = new HUD(root);
+    this.hud.setHeader(copy().header);
     try {
       this.renderer = new Renderer(this.hud.viewport, () => this.fail());
     } catch (error) {
@@ -43,6 +45,7 @@ export class App {
       (error: unknown) => {
         console.error(error);
         this.hud.setStatus(`Failed to start: ${String(error)}`, true);
+        this.hud.setDebugVisible(true);
       },
     );
   }
@@ -57,7 +60,7 @@ export class App {
     this.chapters?.dispose();
     this.chapters = undefined;
     this.input?.dispose();
-    this.hud.showWorldError();
+    this.hud.showWorldError(copy().errors.noWebgl, copy().errors.noWebglDetail);
   }
 
   dispose(): void {

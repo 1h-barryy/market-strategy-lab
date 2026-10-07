@@ -22,13 +22,14 @@ export interface PanelActions {
   dropInstant(count: number): void;
 }
 
-/** P0 developer panel. Temporary: DESIGN.md §8 replaces it with in-world controls. */
+/** Developer panel, part of the debug overlay (D). Uses model terms on purpose; never shown to players by default. */
 export class DevPanel {
   private readonly gui = new GUI({ title: 'Board (dev panel)' });
   private readonly values: WorldParams;
 
   constructor(params: WorldParams, playback: Playback, actions: PanelActions) {
     this.values = { ...params };
+    this.gui.hide();
     const world = this.gui.addFolder('World');
     const change = (key: keyof WorldParams) => (value: number) => actions.setParams({ [key]: value });
     world.add(this.values, 'rho', BOARD_LIMITS.rho.min, BOARD_LIMITS.rho.max, BOARD_LIMITS.rho.step).name('ρ inertia').onChange(change('rho'));
@@ -49,6 +50,10 @@ export class DevPanel {
   sync(params: WorldParams): void {
     Object.assign(this.values, params);
     for (const controller of this.gui.controllersRecursive()) controller.updateDisplay();
+  }
+
+  setVisible(visible: boolean): void {
+    this.gui.show(visible);
   }
 
   dispose(): void {
