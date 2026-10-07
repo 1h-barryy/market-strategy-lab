@@ -1,10 +1,11 @@
 Market Under Stress — Design Document
 
-Version: 0.3.1 (supersedes v0.2)
+Version: 0.4 (supersedes v0.2)
 
-Changelog: 0.3.1: drift and inertia re-parameterized to be independent (stationary π + ρ); ghost/luck baseline defined as same π, ρ = 0; P0 board decisions recorded; deploy base path set to the repo name.
+Changelog: 0.4: framing (pinball machine, stocks, days, the crowd), player vocabulary that hides model symbols, Chapter 1 rewritten with guided intro, live captions and visible Herd; legibility principle; P0.5 milestone inserted, P0 done.
+0.3.1: drift and inertia re-parameterized to be independent (stationary π + ρ); ghost/luck baseline defined as same π, ρ = 0; P0 board decisions recorded; deploy base path set to the repo name.
 
-Status: Pre-production. Repo has a working Vite + TypeScript + Three.js scaffold; no world, models, or simulation yet. Working title: Market Under Stress (subject to change)
+Status: Pre-production. P0 done: tested shared model (src/model/) and a rough, playable Chapter 1 with dev-panel controls. P0.5 (legibility pass) in progress. Working title: Market Under Stress (subject to change)
 
 1. Vision
 
@@ -21,11 +22,35 @@ Honest math. What you see is what the model computes. No faked distributions, no
 Touch the parameter, not a form. Parameters are changed by acting on objects in the world (tilting a board, turning a dial), not by filling in side panels.
 One causal chain. Each chapter consumes what the previous one produced. The player's choices in Chapter 1 shape everything after it.
 Light comes from data. Color and glow carry meaning. If something glows, it is because the model says it matters.
+
+1.1 Framing
+
+The market is a pinball machine. Each ball is a stock. Each row of pegs is a day. What pushes the ball left or right is the crowd, and the crowd can panic, get excited, and chase whatever just happened. Can you see through the machine?
+
+Rules:
+The framing must stay true to the model. Balls never interact. Herd means the crowd reacts to this ball's own previous move; never describe it as balls copying each other.
+No characters, no plot. Only this premise and a consistent vocabulary.
+Chapter 3's player role is the gambler: design a betting rule, then find out whether you saw through the machine or just got lucky.
+
+1.2 Player vocabulary
+
+Player-facing text never shows model symbols. All player-facing strings live in one copy file (src/content/copy.ts), structured so a second language can be added.
+
+Model	Player sees	Control ends
+ρ	Herd	"Turns against it" ← "Ignores it" → "Chases it" (yesterday's move)
+tilt / π	Mood	"Panic" ← "Calm" → "Optimism"
+σ	hidden in Chapter 1	—
+n	Days	each row is one trading day
+ball	a stock	
+bin	where the stock ends up after N days (% gain/loss)	
+ρ = 0 overlay	"If the crowd ignored yesterday"	
+
+Numbers are replaced by short interpretive captions. Exact readouts (ρ, VR, measured vs. theory) remain available in a hidden debug overlay.
 2. Experience Overview
 Chapter	Name	Player role	Question it answers
 1	The Board	Build the market	Where does randomness come from, and can it have memory?
 2	The Terrain	Read the market	Does this market's shape reveal structure?
-3	The Test	Trade the market	Is my strategy's profit an edge, overfitting, or luck?
+3	The Test	The gambler: bet on the machine	Did I see through the machine, or just get lucky?
 
 The player moves linearly 1 → 2 → 3, and can return to Chapter 1 to change the world and see Chapters 2 and 3 respond.
 
@@ -94,15 +119,35 @@ This is a real statistical test used in quant research, and it is what Chapter 2
 
 4. Chapter 1 — The Board
 
-Role: The player builds the market.
+Role: The player builds the market: sets the crowd's Mood and Herd, then watches stocks fall through the days.
+
+In this chapter (vocabulary from §1.2): a ball is a stock, a row of pegs is one trading day, a bin is where the stock ends up after N days, labeled as % gain/loss. The outline over the bins is "If the crowd ignored yesterday".
 
 Interaction
-Drop balls: click/hold to release balls; each ball is one price path.
-Tilt the board: drag or arrow keys → drift.
-Rows: adjust → n.
-Volatility: adjust → σ_step.
-Inertia dial: turn → ρ. The core control of the chapter.
-Inspect a ball: click a landed ball; its bounce sequence unrolls into a price line behind the board.
+Drop stocks: click/hold (or hold Space) to release balls; each ball is one stock's path over N days.
+Mood (tilt): "Panic" ← "Calm" → "Optimism". Keyboard ←/→.
+Herd (ρ): "Turns against it" ← "Ignores it" → "Chases it". Keyboard ↑/↓. The core control of the chapter.
+Days (n): one row per trading day.
+σ and seed are not player controls. σ is fixed in Chapter 1 and only scales the % labels; seed lives in the debug overlay.
+Inspect a stock: click a landed ball; its days unroll into a price line beside the board, labeled in plain words ("This stock's 12 days", start price, end price, % change).
+Debug overlay: the D key toggles the exact readout table and the dev panel (all model parameters, measured vs. theory). Hidden by default.
+
+Guided intro (skippable, replayable; each step is one or two short lines)
+1. Premise. Mood and Herd are locked at neutral. "Drop some balls." The bell shape forms; the caption explains it.
+2. Mood unlocks. Moving it shifts everything.
+3. Herd unlocks. The "If the crowd ignored yesterday" outline stays fixed while the pile pulls away from it. The caption names the gap between pile and outline as the crowd's behavior.
+4. Free play.
+
+Making Herd visible
+While falling, each ball carries its previous move: its color is the direction of its last move (warm = up, cool = down) and a short trail keeps that color across steps. With "Chases it", balls hold one color through long runs; with "Turns against it", they flicker. This is the ball's own history, never other balls.
+
+Live captions
+One or two sentences interpret the pile against the "ignored yesterday" baseline:
+Spread clearly wider → the crowd is chasing; outcomes are more extreme, big wins and big losses both more common.
+Spread clearly narrower → the crowd keeps reversing; stocks end up closer to where they started.
+About the same → no visible pattern yet.
+Average clearly shifted → Mood is pushing everything up or down.
+No pattern is claimed until enough balls have landed; until then the caption asks for more balls. The rules are a pure function (measured stats in, caption key out) with unit tests.
 
 Board mapping (P0 decisions)
 One row of pegs = one step; the board has n rows and n + 1 bins. In P0, path length = row count (n ∈ [8, 24]); see open question 1 for longer paths.
@@ -110,9 +155,10 @@ Moving right = up-step (+1). A ball's horizontal position is its running count o
 Ball k released is path k of the precomputed batch in app state, so the board reveals the stored batch in order rather than drawing new randomness.
 
 What the player should see
-At ρ = 0, bins fill into a clean bell curve that matches the analytic overlay: Binomial(n, π), the same drift.
-At ρ > 0, balls commit to a direction and run; the distribution visibly widens and flattens.
-At ρ < 0, balls zig-zag and pile into the center bins.
+Herd "Ignores it" (ρ = 0): bins fill into a bell that matches the outline, Binomial(n, π) with the same Mood.
+"Chases it" (ρ > 0): stocks commit to a direction and run; the pile is wider and flatter than the outline.
+"Turns against it" (ρ < 0): stocks zig-zag and pile up in the middle.
+Mood moves the outline and the pile together.
 Motion
 
 Balls follow scripted arcs peg-to-peg, driven by the model's step sequence. No rigid-body physics: collisions between balls would distort the distribution and break reproducibility. The motion should still read as physical (arc, slight squash, bounce timing).
@@ -206,6 +252,7 @@ One accent for the player's choices (selected strategy, inspected ball)
 Light comes from data. Balls are emissive particles with trails; path lines are light traces; high-density terrain regions glow. Bloom post-processing applies only to emissive, meaningful elements.
 Matte, tactile solids. Boards, pegs, bases and dials are soft matte materials, like toys or glazed ceramic, contrasting with luminous data. No holograms, no wireframe-as-style.
 Controls are objects. Dials, levers and the tilting board are modeled, lit, and animated with weight (ease, overshoot, settle).
+Legibility first. Art serves understanding; if a visual doesn't help the player read the model, cut it.
 Restraint in UI. Small typographic HUD for numbers that must be exact (Sharpe, VR, verdict). Everything else is in the scene.
 Asset approach
 
@@ -225,6 +272,7 @@ src/
 │   ├── board/         Chapter 1
 │   ├── terrain/       Chapter 2
 │   └── test/          Chapter 3
+├── content/           copy.ts: every player-facing string (per language)
 ├── world/shared/      materials, palette, lights, camera rig, post-processing
 ├── app/               state (params, chapter, batches, results), controller
 └── ui/                HUD overlay, styles
@@ -244,7 +292,7 @@ Accessibility: keyboard-operable controls, reduced-motion support, readable cont
 Deploy: GitHub repo 2025-10-07_market-strategy-lab; vite.config.ts base is '/2025-10-07_market-strategy-lab/'. If the repo is renamed, base must change with it.
 Timeline: TBD.
 11. Milestones
-P0 — Prototype: the model and the board
+P0 — Prototype: the model and the board (done)
 
 Goal: make inertia understandable by playing with it.
 
@@ -252,6 +300,17 @@ model/random.ts, model/process.ts, model/stats.ts with tests (seed reproducibili
 Chapter interface and chapter manager (one chapter registered)
 Chapter 1 rough: instanced pegs and balls, scripted arcs, bin histogram with analytic overlay, ρ / tilt / σ controls (dev panel acceptable), click-a-ball path unroll
 Debug readout: measured autocorrelation and VR
+P0.5 — Legibility pass
+
+Goal: a first-time player can say what Mood and Herd do without seeing a number. The model does not change.
+
+Copy layer: all player-facing strings in src/content/copy.ts
+Player controls: Mood and Herd with end labels (no numbers), Days; σ and seed removed from player controls
+Debug overlay: readout table + dev panel, hidden by default, toggled with D
+Live captions from measured stats vs. the "ignored yesterday" baseline, as a tested pure function
+Guided intro: premise → Mood → Herd → free play; skippable and replayable
+Herd visible on falling balls (color + short trail of the previous move)
+Inspected ball in plain words
 P1 — The Terrain
 Density surface from batch, ghost ρ = 0 reference, VR readout, time-slice scrub, live morph on parameter change
 P2 — The Test
