@@ -1,6 +1,10 @@
 Market Under Stress — Design Document
 
-Version: 0.3 (supersedes v0.2) Status: Pre-production. Repo has a working Vite + TypeScript + Three.js scaffold; no world, models, or simulation yet. Working title: Market Under Stress (subject to change)
+Version: 0.3.1 (supersedes v0.2)
+
+Changelog: 0.3.1: drift and inertia re-parameterized to be independent (stationary π + ρ); ghost/luck baseline defined as same π, ρ = 0; P0 board decisions recorded; deploy base path set to the repo name.
+
+Status: Pre-production. Repo has a working Vite + TypeScript + Three.js scaffold; no world, models, or simulation yet. Working title: Market Under Stress (subject to change)
 
 1. Vision
 
@@ -33,11 +37,22 @@ All three chapters run on one price process. It lives in src/model/, has no Thre
 
 Each path is a sequence of steps ε_t ∈ {+1, −1} (one Galton peg = one step).
 
-Drift (tilt) sets the base probability of an up-step: p = 0.5 + tilt
-Inertia (ρ) makes each step depend on the previous one:
-P(ε_t = +1 | ε_{t−1}) = clamp(p + (ρ / 2) · ε_{t−1}, 0.01, 0.99)
+The steps form a two-state Markov chain with two independent knobs:
 
-At p = 0.5, the probability of repeating the previous step is (1 + ρ) / 2, and the lag-1 autocorrelation of steps is exactly ρ.
+Drift (tilt) sets the long-run (stationary) probability of an up-step: π = 0.5 + tilt
+Inertia (ρ) makes each step depend on the previous one:
+P(ε_t = +1 | ε_{t−1} = +1) = π + ρ · (1 − π)
+P(ε_t = +1 | ε_{t−1} = −1) = π · (1 − ρ)
+The first step is drawn with probability π, so the chain starts in its stationary state (no transient).
+
+Properties, for every allowed tilt and ρ:
+Long-run share of up-steps is π, so the mean step (drift) is 2π − 1, independent of ρ.
+Lag-1 autocorrelation of steps is exactly ρ; lag-k autocorrelation is ρ^k.
+Step variance is 4π(1 − π).
+
+Ranges: tilt ∈ [−0.1, 0.1] (π ∈ [0.4, 0.6]), ρ ∈ [−0.6, 0.9]. Both transition probabilities stay inside [0, 1] across this whole box, so no clamping is needed; the model rejects parameters outside it.
+
+Why drift and inertia are parameterized separately: in a naive form (P(+1) = p + (ρ/2)·ε_{t−1}), inertia also changes the long-run drift, to (2p − 1)/(1 − ρ). Momentum would then shift where outcomes are centered, not just how wide they spread, and every ρ = 0 comparison (the binomial overlay, the Chapter 2 ghost, the Chapter 3 luck baseline) would mix "more drift" with "more structure". Fixing π as the stationary probability keeps tilt the only source of drift and ρ the only source of memory.
 
 ρ	Behavior	Market reading
 > 0	Steps repeat; runs get long; outcomes spread wide	Momentum / herding: what rose keeps rising
@@ -53,16 +68,27 @@ Log-price accumulates scaled steps; price is its exponential:
 L_t = L_{t−1} + σ_step · ε_t
 S_t = S_0 · exp(L_t)
 
-Parameters: tilt (drift), σ (volatility, maps to peg spacing / step size), ρ (inertia), n (steps per path), seed.
+Parameters: tilt (drift), σ_step (volatility: log-price change per step), ρ (inertia), n (steps per path), seed.
+
+Final position X_n = Σ ε_t (in steps) has mean n(2π − 1) and variance 4π(1 − π) · [n + 2 Σ_{k=1}^{n−1} (n − k) ρ^k]. Final log-return is σ_step · X_n.
+
+Batches: a batch is generated once per parameter change and stored in app state. Path i is seeded from (seed, i), so a path does not depend on batch size or on which other paths were drawn.
 
 3.3 Key property: variance ratio
 
 For q-step returns, the variance ratio is
 
 VR(q) = Var(q-step return) / (q · Var(1-step return))
-ρ = 0 → VR ≈ 1 (spread grows like √t)
+
+Because the lag-k autocorrelation is ρ^k for any π, the theoretical value depends on ρ only, not on drift or σ_step:
+
+VR(q) = 1 + 2 Σ_{k=1}^{q−1} (1 − k/q) · ρ^k
+
+ρ = 0 → VR = 1 (spread grows like √t)
 ρ > 0 → VR > 1 (spread grows faster); for large q, VR → (1 + ρ) / (1 − ρ), e.g. ρ = 0.3 → ≈ 1.86
 ρ < 0 → VR < 1 (spread grows slower)
+
+Estimator (used by the readouts and tests): split every path in the batch into non-overlapping q-step blocks, pool all block sums, and take their sample variance (around the pooled mean); divide by q times the sample variance of all single steps. Pooling across many paths keeps the estimate stable even when n is small.
 
 This is a real statistical test used in quant research, and it is what Chapter 2 makes visible.
 
@@ -73,11 +99,18 @@ Role: The player builds the market.
 Interaction
 Drop balls: click/hold to release balls; each ball is one price path.
 Tilt the board: drag or arrow keys → drift.
-Peg spacing / rows: adjust → σ and n.
+Rows: adjust → n.
+Volatility: adjust → σ_step.
 Inertia dial: turn → ρ. The core control of the chapter.
 Inspect a ball: click a landed ball; its bounce sequence unrolls into a price line behind the board.
+
+Board mapping (P0 decisions)
+One row of pegs = one step; the board has n rows and n + 1 bins. In P0, path length = row count (n ∈ [8, 24]); see open question 1 for longer paths.
+Moving right = up-step (+1). A ball's horizontal position is its running count of steps, so the board geometry is fixed and does not change with σ_step. σ_step shows up on the price-line scale and in the log-return labels under the bins.
+Ball k released is path k of the precomputed batch in app state, so the board reveals the stored batch in order rather than drawing new randomness.
+
 What the player should see
-At ρ = 0, bins fill into a clean bell curve that matches the analytic binomial overlay.
+At ρ = 0, bins fill into a clean bell curve that matches the analytic overlay: Binomial(n, π), the same drift.
 At ρ > 0, balls commit to a direction and run; the distribution visibly widens and flattens.
 At ρ < 0, balls zig-zag and pile into the center bins.
 Motion
@@ -101,7 +134,7 @@ It reads as a valley that opens outward over time. Built from a simulated batch 
 
 Reference ridge
 
-A faint ghost surface shows the ρ = 0 shape with the same drift and volatility. The difference between the live terrain and the ghost is the structure in the market:
+A faint ghost surface shows the shape of the same world with ρ = 0: same π (same drift), same σ_step. The difference between the live terrain and the ghost is the structure in the market:
 
 Terrain wider than the ghost → momentum
 Terrain narrower than the ghost → mean reversion
@@ -140,7 +173,7 @@ Sharpe = mean(strategy returns) / std(strategy returns) × √(steps per "year")
 6.3 The three-step test
 Train (in-sample). Run all 36 strategies on batch A (100 paths, seed A). The grid lights up by score. The player picks a cell; the brightest is the obvious pick.
 Out-of-sample. Generate batch B from the same world (same tilt, σ, ρ; new seed). Run the chosen strategy. The drop from train to out-of-sample is the overfitting gap.
-Luck baseline (null test). Run the chosen strategy on 200 batches from a world with the same tilt and σ but ρ = 0. This gives the distribution of scores luck alone can produce (including any drift the strategy earns just by being long). Place the out-of-sample score in that distribution.
+Luck baseline (null test). Run the chosen strategy on 200 batches from a world with the same π (same drift) and σ_step but ρ = 0. This gives the distribution of scores luck alone can produce (including any drift the strategy earns just by being long). Because drift does not depend on ρ (§3.1), the baseline earns exactly the same drift as the real world, so drift alone cannot pass as an edge. Place the out-of-sample score in that distribution.
 6.4 Verdict
 
 Let p95 be the 95th percentile of the luck baseline.
@@ -208,7 +241,7 @@ Data: fully simulated; no real market data in v1.
 Reproducibility: every data-producing simulation is seeded.
 Performance: 60 fps target on a mid-range laptop; ≤ 2 MB of assets per chapter; JS bundle split so Three.js is its own chunk.
 Accessibility: keyboard-operable controls, reduced-motion support, readable contrast on HUD.
-Deploy: vite.config.ts base path must match the GitHub repo name.
+Deploy: GitHub repo 2025-10-07_market-strategy-lab; vite.config.ts base is '/2025-10-07_market-strategy-lab/'. If the repo is renamed, base must change with it.
 Timeline: TBD.
 11. Milestones
 P0 — Prototype: the model and the board
