@@ -19,10 +19,10 @@ body { background: var(--bg, #14161c); }
 .scene-label { font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; color: #adb5bd; white-space: nowrap; }
 .scene-label.strong { color: var(--neutral); }
 
-.hud { position: fixed; inset: 0; pointer-events: none; padding: 20px 24px; display: flex; flex-direction: column; justify-content: space-between; }
+.hud { position: fixed; inset: 0 auto 0 0; width: min(400px, 100%); pointer-events: none; padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
 .hud-title h1 { margin: 6px 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
 .eyebrow { margin: 0; font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 0.12em; color: #adb5bd; }
-.hint { margin: 0; max-width: 46ch; font-size: 13px; line-height: 1.5; color: #ced4da; }
+.hint { margin: 0; max-width: 44ch; font-size: 13px; line-height: 1.5; color: #ced4da; }
 
 .hud-readout { align-self: flex-start; max-width: 100%; padding: 12px 14px; background: rgb(20 22 28 / 0.82); border-radius: 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .hud-readout table { border-collapse: collapse; }
@@ -31,14 +31,14 @@ body { background: var(--bg, #14161c); }
 .hud-readout th:first-child, .hud-readout td:first-child { text-align: left; padding-left: 0; color: #ced4da; }
 .detail { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid #343a40; font: inherit; white-space: pre-wrap; color: var(--neutral); }
 .detail[hidden] { display: none; }
-.status { margin: 8px 0 0; color: #adb5bd; }
+.status { margin: 8px 0 0; color: #adb5bd; white-space: pre-line; }
 .status:empty { display: none; }
 .status.error { color: #ff8787; }
 
 .world-error { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 12px; color: #ced4da; }
 .world-error span { font-size: 13px; color: #adb5bd; }
 
-.lil-gui.root { position: fixed; top: 12px; right: 12px; z-index: 10; }
+.lil-gui.lil-root { z-index: 10; }
 
 @media (max-width: 700px) {
   .hud { padding: 12px; }

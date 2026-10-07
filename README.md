@@ -4,7 +4,7 @@
 
 ## What this project does
 
-**Phase 1 scaffold:** Vite, TypeScript, and Three.js render a procedural test chamber with editable Fast MA, Slow MA, and Exposure controls. `RUN TEST` displays `BACKTEST ENGINE NOT CONNECTED`; all numerical results remain `--`. No market data, trading signals, backtesting, or financial calculations are implemented.
+**Prototype P0 (see `DESIGN.md` §11):** Chapter 1 (The Board) only. A Galton board in Three.js where each ball is one simulated price path from a seeded two-state Markov step process with drift (tilt) and inertia (ρ). Bins fill against the analytic ρ = 0 binomial overlay, a landed ball can be inspected as a price line, and a HUD shows measured vs. theoretical mean/sd, lag-1 autocorrelation and variance ratios. Parameters are changed through a temporary lil-gui dev panel and the keyboard. Chapters 2 (Terrain) and 3 (Test) are not implemented.
 
 <!-- Write 2–4 sentences: the user configures which rule, tests what, and sees which results. Distinguish implemented features from plans. -->
 
@@ -39,25 +39,21 @@ npm run build
 npm run preview
 ```
 
-Open the local URL printed by Vite, under `/market-under-stress/`.
+Open the local URL printed by Vite, under `/2025-10-07_market-strategy-lab/`.
 
 Source responsibilities:
 
 ```text
 src/
 ├── main.ts
-├── vite-env.d.ts
-├── app/                 Application orchestration and placeholder state
-│   ├── App.ts
-│   ├── state.ts
-│   └── state.test.ts
-├── model/               Reserved; no quantitative engine yet
-├── world/
-│   ├── World.ts         Camera, lighting, resize, animation, disposal
-│   └── assets/lab.ts    Procedural platform and core
-└── ui/
-    ├── UI.ts            DOM controls and placeholder results
-    └── styles.css
+├── app/                 App wiring and frame loop; state (world params + current batch)
+├── core/                Renderer, fixed-step Clock, Input/picking, ChapterManager, events
+├── model/               Pure TypeScript, no Three.js: random.ts, process.ts, stats.ts (+ tests)
+├── chapters/
+│   ├── types.ts         Chapter interface
+│   └── board/           Chapter 1: mapping.ts (model → scene), pegs, balls, overlay, price line, dev panel
+├── world/shared/        palette.ts (semantic colors)
+└── ui/                  HUD overlay and styles
 ```
 
 ## Data, assumptions, and limitations
@@ -74,13 +70,13 @@ src/
 
 ## Secrets and deployment
 
-The scaffold is entirely client-side and requires no secrets or backend. Vite uses the base path `/market-under-stress/`. The workflow in `.github/workflows/deploy.yml` tests, builds, and deploys `dist` on pushes to `main` or manual dispatch. In a GitHub repository named `market-under-stress`, choose **Settings → Pages → Source → GitHub Actions**. If your deployment branch differs, update the workflow trigger. Deployment has not been run or verified.
+The app is entirely client-side and requires no secrets or backend. Vite uses the base path `/2025-10-07_market-strategy-lab/`, matching the GitHub repository name; Three.js is built as its own chunk. The workflow in `.github/workflows/deploy.yml` tests, builds, and deploys `dist` on pushes to `main` or manual dispatch. In the repository, choose **Settings → Pages → Source → GitHub Actions**. If your deployment branch differs, update the workflow trigger. Deployment has not been run or verified.
 
 <!-- State whether the implemented app uses secrets/backend services. For the intended static MVP: no private keys belong in the frontend or repository. Describe actual hosting. -->
 
 ## Device support and known issues
 
-Desktop-first layout; the panels stack on narrow screens. The renderer follows its container size and caps pixel density at 2. Reduced-motion preferences disable the decorative animation. If WebGL initialization fails or the context is lost, a visible fallback keeps the controls usable; reload to retry 3D. The core is decorative and does not represent computed results.
+Desktop-first: full-screen canvas with a HUD column on the left and the dev panel on the right; on narrow screens these overlap the board. The renderer follows the window size and caps pixel density at 2. Reduced-motion preferences remove the ball arcs, squash and price-line unroll; they never change simulated results. If WebGL fails to start or the context is lost, a message replaces the scene; reload to retry.
 
 <!-- Record tested browsers/devices, small-screen/WebGL fallback behavior and real known issues. -->
 
