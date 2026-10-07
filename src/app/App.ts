@@ -1,27 +1,81 @@
-import { createInitialState, requestTest } from './state';
-import { UI } from '../ui/UI';
-import { World } from '../world/World';
+import { BoardChapter } from '../chapters/board/BoardChapter';
+import type { ChapterContext } from '../chapters/types';
+import { ChapterManager } from '../core/ChapterManager';
+import { Clock } from '../core/Clock';
+import { Input } from '../core/Input';
+import { Renderer } from '../core/Renderer';
+import { HUD } from '../ui/HUD';
+import { cssColor, palette } from '../world/shared/palette';
+import { Store } from './state';
 
+/** Wires state, renderer, clock, input, HUD and chapters together, and runs the frame loop. */
 export class App {
-  private state = createInitialState();
-  private readonly ui: UI;
-  private world?: World;
+  private readonly hud: HUD;
+  private readonly store = new Store();
+  private readonly clock = new Clock();
+  private readonly motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  private renderer?: Renderer;
+  private input?: Input;
+  private chapters?: ChapterManager;
 
   constructor(private readonly root: HTMLElement) {
-    this.ui = new UI(root, this.state, (settings) => {
-      this.state = requestTest(this.state, settings);
-      this.ui.render(this.state);
-    });
+    applyPalette();
+    this.hud = new HUD(root);
     try {
-      this.world = new World(this.ui.viewport, () => this.ui.showWorldError());
+      this.renderer = new Renderer(this.hud.viewport, () => this.fail());
     } catch (error) {
       console.warn('Unable to initialize the 3D viewport.', error);
-      this.ui.showWorldError();
+      this.fail();
+      return;
     }
+    this.input = new Input(this.renderer.canvas);
+    const context: ChapterContext = {
+      renderer: this.renderer,
+      input: this.input,
+      store: this.store,
+      hud: this.hud,
+      reducedMotion: () => this.motion.matches,
+    };
+    this.chapters = new ChapterManager(context);
+    this.chapters.register(new BoardChapter());
+    this.chapters.goTo('board').then(
+      () => this.renderer?.setLoop(this.frame),
+      (error: unknown) => {
+        console.error(error);
+        this.hud.setStatus(`Failed to start: ${String(error)}`, true);
+      },
+    );
+  }
+
+  private frame = (time: number): void => {
+    if (!this.chapters) return;
+    this.clock.advance(time, (dt) => this.chapters!.update(dt));
+    this.chapters.render();
+  };
+
+  private fail(): void {
+    this.chapters?.dispose();
+    this.chapters = undefined;
+    this.input?.dispose();
+    this.hud.showWorldError();
   }
 
   dispose(): void {
-    this.world?.dispose();
+    this.renderer?.setLoop(null);
+    this.chapters?.dispose();
+    this.input?.dispose();
+    this.renderer?.dispose();
+    this.store.clear();
     this.root.replaceChildren();
   }
+}
+
+/** Mirrors the semantic palette into CSS variables so HUD and scene share one source. */
+function applyPalette(): void {
+  const style = document.documentElement.style;
+  style.setProperty('--bg', cssColor(palette.background));
+  style.setProperty('--up', cssColor(palette.up));
+  style.setProperty('--down', cssColor(palette.down));
+  style.setProperty('--neutral', cssColor(palette.neutral));
+  style.setProperty('--accent', cssColor(palette.accent));
 }
