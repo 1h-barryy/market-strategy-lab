@@ -4,20 +4,20 @@
  * not the meanings.
  */
 export const palette = {
-  background: 0x29233b,
+  background: 0x0b1220,
   /** Matte solids: board, pegs, bin walls. */
-  board: 0x384247,
-  peg: 0xbeb5a7,
+  board: 0x223446,
+  peg: 0xa5b8c8,
   /** Up-steps, momentum, gains. */
-  up: 0xffad78,
+  up: 0x48ddb1,
   /** Down-steps, mean reversion, losses. */
-  down: 0x6dceef,
+  down: 0xff7088,
   /** Probability density / "how likely" (analytic overlay, flat outcomes). */
-  neutral: 0xfff5e8,
+  neutral: 0xe4eef5,
   /** The player's choice (inspected ball). */
-  accent: 0xc5acff,
+  accent: 0x8193ff,
   /** Secondary lines: axes, reference levels. */
-  guide: 0xabb8b3,
+  guide: 0x6e8ba3,
 } as const;
 
 export function cssColor(hex: number): string {
