@@ -15,6 +15,7 @@ import { BOARD_LIMITS, DevPanel, type Playback } from './devPanel';
 import { BinomialOverlay } from './histogram';
 import { advance, canAdvance, freePlay, locks, noteMoved, startIntro, type IntroState } from './intro';
 import { BoardMapping, FRAME } from './mapping';
+import type { Instrument } from '../../art/instrument';
 import { createBoard } from './pegs';
 import { PriceLine, S0 } from './priceLine';
 
@@ -88,7 +89,7 @@ export class BoardChapter implements Chapter {
   private readonly playback: Playback = { releaseRate: 12, speed: 1 };
   private readonly world = new THREE.Group();
   private mapping!: BoardMapping;
-  private board?: THREE.Group;
+  private board?: Instrument;
   private balls?: Balls;
   private overlay?: BinomialOverlay;
   private priceLine?: PriceLine;
@@ -169,6 +170,7 @@ export class BoardChapter implements Chapter {
     }
     const reduced = this.context.reducedMotion();
     balls.update(dt * this.playback.speed, reduced);
+    this.board!.update(dt, balls.sourcePulse);
     this.syncOverlay();
     this.priceLine!.update(dt, reduced);
     this.readoutTimer += dt;
@@ -215,6 +217,8 @@ export class BoardChapter implements Chapter {
     this.mapping = new BoardMapping(params.n);
     this.board = createBoard(this.mapping);
     this.balls = new Balls(this.mapping, BATCH_SIZE);
+    const board = this.board;
+    this.balls.onLand = (bin, color) => board.flash(bin, color);
     this.overlay = new BinomialOverlay(this.mapping);
     this.overlay.setLabels(params.sigmaStep);
     this.priceLine = new PriceLine(this.mapping);
@@ -234,7 +238,7 @@ export class BoardChapter implements Chapter {
   }
 
   private teardownBoard(): void {
-    if (this.board) disposeObject(this.board);
+    this.board?.dispose();
     this.balls?.dispose();
     this.overlay?.dispose();
     this.priceLine?.dispose();

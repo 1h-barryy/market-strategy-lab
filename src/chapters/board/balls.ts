@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import type { Path } from '../../model/process';
+import { CHANNEL, CONTACT_SHARE, SOURCE_PULSE_SECONDS } from '../../art/instrument';
+import { addGlowAttribute, luminousInstanced, pulseMaterial, trailMaterial } from '../../art/materials';
+import { ART_SCALE, GLOW } from '../../art/palette';
 import { palette } from '../../world/shared/palette';
 import { BoardMapping, type Point } from './mapping';
 
@@ -44,6 +47,13 @@ export class Balls {
   readonly group = new THREE.Group();
   readonly mesh: THREE.InstancedMesh;
   private readonly trail: THREE.InstancedMesh;
+  /** Contact pulses: a ring on the peg a ball is touching (art sandbox). */
+  private readonly rings: THREE.InstancedMesh;
+  private readonly glow: THREE.InstancedBufferAttribute;
+  /** 0..1 glow of the source while a ball is just released. Visual only. */
+  sourcePulse = 0;
+  /** Called when a ball lands during playback, with its bin and landed color. Visual only. */
+  onLand?: (bin: number, color: THREE.Color) => void;
   /** Landed balls per bin, bottom to top. */
   readonly bins: number[][];
   private readonly balls: Ball[] = [];
@@ -60,16 +70,21 @@ export class Balls {
 
   constructor(private readonly mapping: BoardMapping, capacity: number) {
     const geometry = new THREE.SphereGeometry(1, 16, 12);
-    this.mesh = new THREE.InstancedMesh(geometry, new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0 }), capacity);
+    // Balls glow while falling and rest matte once landed (art sandbox: emission belongs to moving data).
+    this.glow = addGlowAttribute(geometry, capacity);
+    this.mesh = new THREE.InstancedMesh(geometry, luminousInstanced(0.35), capacity);
     this.mesh.name = 'Balls';
-    this.trail = new THREE.InstancedMesh(geometry, new THREE.MeshBasicMaterial(), TRAIL.capacity);
+    this.trail = new THREE.InstancedMesh(geometry.clone().deleteAttribute('instanceGlow'), trailMaterial(), TRAIL.capacity);
     this.trail.name = 'BallTrails';
-    for (const mesh of [this.mesh, this.trail]) {
+    const ring = new THREE.TorusGeometry(mapping.pegRadius + 0.019 * ART_SCALE, 0.009 * ART_SCALE, 6, 16);
+    this.rings = new THREE.InstancedMesh(ring, pulseMaterial(), TRAIL.capacity);
+    this.rings.name = 'ContactPulses';
+    for (const mesh of [this.mesh, this.trail, this.rings]) {
       mesh.count = 0;
       // Instances move every frame; a cached bounding sphere would cull them wrongly.
       mesh.frustumCulled = false;
     }
-    this.group.add(this.mesh, this.trail);
+    this.group.add(this.mesh, this.trail, this.rings);
     this.bins = Array.from({ length: mapping.n + 1 }, () => []);
     this.unit = mapping.stackUnit(1);
   }
@@ -122,12 +137,24 @@ export class Balls {
   update(dt: number, reducedMotion: boolean): void {
     const duration = TIMING.entry + this.mapping.n * TIMING.step + TIMING.fall;
     let dots = 0;
+    let rings = 0;
+    this.sourcePulse = 0;
     for (const ball of this.balls) {
       if (ball.landed) continue;
       ball.age += dt;
       if (ball.age >= duration) {
         this.land(ball);
+        this.onLand?.(ball.bin, this.landedColor(ball));
         continue;
+      }
+      if (ball.age < SOURCE_PULSE_SECONDS) this.sourcePulse = Math.max(this.sourcePulse, Math.sin((Math.PI * ball.age) / SOURCE_PULSE_SECONDS));
+      const tStep = (ball.age - TIMING.entry) / TIMING.step;
+      if (!reducedMotion && tStep >= 0 && tStep < this.mapping.n && tStep % 1 < CONTACT_SHARE && rings < TRAIL.capacity) {
+        const t = Math.floor(tStep);
+        const peg = this.mapping.peg(t, ball.upCount[t]);
+        this.position.set(peg.x, peg.y, CHANNEL.frontZ + 0.024 * ART_SCALE);
+        this.rings.setMatrixAt(rings, this.matrix.makeTranslation(this.position));
+        this.rings.setColorAt(rings++, ball.path.steps[t] > 0 ? colorUp : colorDown);
       }
       this.writePose(this.mesh, ball.index, this.pose(ball, ball.age, reducedMotion), 1);
       for (let i = 1; i <= TRAIL.dots && dots < TRAIL.capacity; i++) {
@@ -139,13 +166,15 @@ export class Balls {
       }
     }
     this.trail.count = dots;
+    this.rings.count = rings;
     this.flush();
   }
 
   /** Lands every ball still in flight at once (e.g. when the board stops being the active chapter). */
   landAll(): void {
     for (const ball of this.balls) if (!ball.landed) this.land(ball);
-    this.trail.count = 0;
+    this.trail.count = this.rings.count = 0;
+    this.sourcePulse = 0;
     this.flush();
   }
 
@@ -155,7 +184,8 @@ export class Balls {
       for (const ball of this.balls) if (ball.landed) this.writeLanded(ball);
       this.landedDirty = false;
     }
-    for (const mesh of [this.mesh, this.trail]) {
+    this.glow.needsUpdate = true;
+    for (const mesh of [this.mesh, this.trail, this.rings]) {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
@@ -204,8 +234,14 @@ export class Balls {
     // Stacks compress as counts grow: each ball becomes a coin exactly one stack unit tall.
     this.scale.set(xz, Math.min(r, this.unit / 2), xz);
     this.mesh.setMatrixAt(ball.index, this.matrix.compose(this.position, this.identity, this.scale));
+    this.mesh.setColorAt(ball.index, isSelected ? colorAccent : this.landedColor(ball));
+    this.glow.setX(ball.index, isSelected ? GLOW.selection : 0);
+  }
+
+  /** Landed color: up or down overall. */
+  private landedColor(ball: Ball): THREE.Color {
     const final = ball.path.final;
-    this.mesh.setColorAt(ball.index, isSelected ? colorAccent : final > 0 ? colorUp : final < 0 ? colorDown : colorNeutral);
+    return final > 0 ? colorUp : final < 0 ? colorDown : colorNeutral;
   }
 
   /** Where a flying ball is at `age`, and its color: the direction of the move it is making. */
@@ -241,13 +277,14 @@ export class Balls {
     this.scale.set(r / Math.sqrt(pose.squash), r * pose.squash, r / Math.sqrt(pose.squash));
     mesh.setMatrixAt(index, this.matrix.compose(this.position, this.identity, this.scale));
     mesh.setColorAt(index, pose.color);
+    if (mesh === this.mesh) this.glow.setX(index, GLOW.particle);
   }
 
   dispose(): void {
-    this.mesh.geometry.dispose();
-    (this.mesh.material as THREE.Material).dispose();
-    (this.trail.material as THREE.Material).dispose();
-    this.mesh.dispose();
-    this.trail.dispose();
+    for (const mesh of [this.mesh, this.trail, this.rings]) {
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+      mesh.dispose();
+    }
   }
 }
