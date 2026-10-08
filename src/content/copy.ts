@@ -100,7 +100,7 @@ const en: Copy = {
     tagline: 'Can you see through the machine?',
     hint: 'Click or hold Space to drop stocks · click a landed stock to read its story · D: debug',
   },
-  legend: { prefix: "Color = the stock's last move:", up: 'up', down: 'down' },
+  legend: { prefix: 'Falling: color = the last move. Landed: color = up or down overall.', up: 'up', down: 'down' },
   intro: {
     steps: [
       { lines: ['The market is a pinball machine. Each ball is a stock; each row of pegs is a trading day.', 'Drop some stocks: click, or hold Space.'] },
