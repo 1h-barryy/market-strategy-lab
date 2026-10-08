@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Path } from '../../model/process';
 import { CHANNEL, CONTACT_SHARE, SOURCE_PULSE_SECONDS } from '../../art/instrument';
+import { ParticleHalos } from '../../art/halo';
 import { addGlowAttribute, luminousInstanced, pulseMaterial, trailMaterial } from '../../art/materials';
 import { ART_SCALE, GLOW } from '../../art/palette';
 import { palette } from '../../world/shared/palette';
@@ -50,6 +51,8 @@ export class Balls {
   /** Contact pulses: a ring on the peg a ball is touching (art sandbox). */
   private readonly rings: THREE.InstancedMesh;
   private readonly glow: THREE.InstancedBufferAttribute;
+  /** Colored glow around falling balls (the core keeps its up/down hue). */
+  private readonly halos = new ParticleHalos(TRAIL.capacity);
   /** 0..1 glow of the source while a ball is just released. Visual only. */
   sourcePulse = 0;
   /** Called when a ball lands during playback, with its bin and landed color. Visual only. */
@@ -84,7 +87,7 @@ export class Balls {
       // Instances move every frame; a cached bounding sphere would cull them wrongly.
       mesh.frustumCulled = false;
     }
-    this.group.add(this.mesh, this.trail, this.rings);
+    this.group.add(this.mesh, this.trail, this.rings, this.halos.mesh);
     this.bins = Array.from({ length: mapping.n + 1 }, () => []);
     this.unit = mapping.stackUnit(1);
   }
@@ -139,6 +142,7 @@ export class Balls {
     let dots = 0;
     let rings = 0;
     this.sourcePulse = 0;
+    this.halos.begin();
     for (const ball of this.balls) {
       if (ball.landed) continue;
       ball.age += dt;
@@ -156,7 +160,9 @@ export class Balls {
         this.rings.setMatrixAt(rings, this.matrix.makeTranslation(this.position));
         this.rings.setColorAt(rings++, ball.path.steps[t] > 0 ? colorUp : colorDown);
       }
-      this.writePose(this.mesh, ball.index, this.pose(ball, ball.age, reducedMotion), 1);
+      const pose = this.pose(ball, ball.age, reducedMotion);
+      this.writePose(this.mesh, ball.index, pose, 1);
+      this.halos.add(this.position, this.mapping.ballRadius, pose.color);
       for (let i = 1; i <= TRAIL.dots && dots < TRAIL.capacity; i++) {
         const age = ball.age - i * TRAIL.spacing;
         if (age < TIMING.entry) break;
@@ -167,6 +173,7 @@ export class Balls {
     }
     this.trail.count = dots;
     this.rings.count = rings;
+    this.halos.end();
     this.flush();
   }
 
@@ -174,6 +181,8 @@ export class Balls {
   landAll(): void {
     for (const ball of this.balls) if (!ball.landed) this.land(ball);
     this.trail.count = this.rings.count = 0;
+    this.halos.begin();
+    this.halos.end();
     this.sourcePulse = 0;
     this.flush();
   }
@@ -286,5 +295,6 @@ export class Balls {
       (mesh.material as THREE.Material).dispose();
       mesh.dispose();
     }
+    this.halos.dispose();
   }
 }

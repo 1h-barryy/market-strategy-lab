@@ -36,8 +36,12 @@ export const ART_SCALE = 1.3;
 
 /** Emissive intensities from the sandbox (`luminous(color, intensity)`). */
 export const GLOW = {
-  /** Balls in flight and other moving data particles. */
-  particle: 2.8,
+  /**
+   * Balls in flight and other moving data particles. The sandbox used 2.8, which ACES tone mapping
+   * turns nearly white at the project's larger ball size; 0.8 keeps the up/down hue in the core and
+   * the glow comes from the particle halo (art/halo.ts).
+   */
+  particle: 0.8,
   /** The source orb at rest (pulses up when a ball is released). */
   source: 1.1,
   sourcePulse: 1.6,
@@ -47,3 +51,6 @@ export const GLOW = {
   signal: 1.1,
   signalFade: 0.85,
 } as const;
+
+/** Particle halo: shell radius as a multiple of the particle's, and its brightness. */
+export const HALO = { scale: 2.4, strength: 1.2 } as const;

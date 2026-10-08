@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Path } from '../../model/process';
+import { ParticleHalos } from '../../art/halo';
 import { addGlowAttribute, luminousInstanced } from '../../art/materials';
 import { GLOW } from '../../art/palette';
 import { palette } from '../../world/shared/palette';
@@ -20,6 +21,10 @@ export class Walkers {
   private time = 0;
   private paths: readonly Path[] = [];
   private readonly matrix = new THREE.Matrix4();
+  /** Colored glow around each walker (art/halo.ts); a child of the mesh so it shows and hides with it. */
+  private readonly halos: ParticleHalos;
+  private readonly radius: number;
+  private readonly position = new THREE.Vector3();
 
   constructor(private readonly mapping: TerrainMapping, private readonly count = 5) {
     const radius = mapping.unit * 1.6;
@@ -30,6 +35,9 @@ export class Walkers {
     this.mesh.name = 'Walkers';
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;
+    this.radius = radius;
+    this.halos = new ParticleHalos(count);
+    this.mesh.add(this.halos.mesh);
   }
 
   setPaths(paths: readonly Path[]): void {
@@ -41,6 +49,7 @@ export class Walkers {
   update(dt: number, heightAt: (day: number, position: number) => number, floor: number): void {
     const m = this.mapping;
     const cycle = m.days / PACE.daysPerSecond + PACE.pause;
+    this.halos.begin();
     this.time = (this.time + dt) % cycle;
     this.paths.forEach((path, i) => {
       // Stagger the walkers so they don't move in lockstep.
@@ -56,12 +65,15 @@ export class Walkers {
       if (!visible) this.matrix.makeScale(0, 0, 0);
       this.mesh.setMatrixAt(i, this.matrix);
       this.mesh.setColorAt(i, step > 0 ? colorUp : colorDown);
+      if (visible) this.halos.add(this.position.set(m.x(exact), y, m.z(day)), this.radius, step > 0 ? colorUp : colorDown);
     });
+    this.halos.end();
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 
   dispose(): void {
+    this.halos.dispose();
     this.mesh.geometry.dispose();
     (this.mesh.material as THREE.Material).dispose();
     this.mesh.dispose();
