@@ -7,3 +7,4 @@ import './art.css';
 export { configureRenderer, PostProcessing, BLOOM } from './post';
 export { WorldArt, type LightingPreset } from './world';
 export { art, ART_SCALE, GLOW } from './palette';
+export { QualityGovernor, QUALITY_LEVELS, type QualityLevel } from './quality';

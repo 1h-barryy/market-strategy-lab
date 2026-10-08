@@ -1,4 +1,4 @@
-import { WorldArt } from '../art';
+import { QualityGovernor, WorldArt } from '../art';
 import { BoardChapter } from '../chapters/board/BoardChapter';
 import { TerrainChapter } from '../chapters/terrain/TerrainChapter';
 import { TestChapter } from '../chapters/test/TestChapter';
@@ -22,6 +22,7 @@ export class App {
   private readonly motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   private renderer?: Renderer;
   private world?: WorldArt;
+  private quality?: QualityGovernor;
   private input?: Input;
   private chapters?: ChapterManager;
 
@@ -37,6 +38,14 @@ export class App {
       return;
     }
     this.world = new WorldArt(this.stage.scene, this.renderer.webgl);
+    const renderer = this.renderer;
+    const world = this.world;
+    // Slow devices step down to smaller shadows and lower-resolution bloom (art/quality.ts).
+    this.quality = new QualityGovernor((level, index) => {
+      world.setShadowMapSize(level.shadowMap);
+      renderer.post.setBloomScale(level.bloomScale);
+      console.info(`Art quality lowered to level ${index}: shadow map ${level.shadowMap}, bloom at ${level.bloomScale * 100}%.`);
+    });
     this.input = new Input(this.renderer.canvas);
     this.renderer.onResize((width, height) => this.stage.rig.setAspect(width / height));
     const context: ChapterContext = {
@@ -74,6 +83,7 @@ export class App {
       this.stage.rig.update(dt, this.motion.matches);
     });
     this.world?.update(this.stage.camera);
+    this.quality?.sample(time);
     this.chapters.render();
   };
 

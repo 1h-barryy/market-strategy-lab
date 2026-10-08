@@ -36,9 +36,26 @@ export class PostProcessing {
     this.composer.addPass(new OutputPass());
   }
 
+  private size = { width: 1, height: 1, pixelRatio: 1 };
+  private bloomScale = 1;
+
   setSize(width: number, height: number, pixelRatio: number): void {
+    this.size = { width, height, pixelRatio };
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
+    if (this.bloomScale < 1) this.applyBloomScale();
+  }
+
+  /** Bloom resolution as a share of the canvas (quality fallback; 1 = the sandbox's full resolution). */
+  setBloomScale(scale: number): void {
+    this.bloomScale = scale;
+    this.applyBloomScale();
+  }
+
+  private applyBloomScale(): void {
+    const { width, height, pixelRatio } = this.size;
+    const scale = pixelRatio * this.bloomScale;
+    this.bloom.setSize(Math.max(1, Math.round(width * scale)), Math.max(1, Math.round(height * scale)));
   }
 
   render(scene: THREE.Scene, camera: THREE.Camera): void {

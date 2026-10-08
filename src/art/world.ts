@@ -277,11 +277,21 @@ export class WorldArt {
       shadow.near = 0.5;
       shadow.far = half * 5;
       shadow.updateProjectionMatrix();
-      // The sandbox's normal bias (0.028 over a 32-unit, 2048² map ≈ 1.8 texels), kept in texels as the box grows.
-      this.key.shadow.normalBias = ((2 * half) / this.key.shadow.mapSize.x) * 1.8;
     }
+    // The sandbox's normal bias (0.028 over a 32-unit, 2048² map ≈ 1.8 texels), kept in texels as the
+    // box grows or the map shrinks.
+    this.key.shadow.normalBias = ((2 * half) / this.key.shadow.mapSize.x) * 1.8;
     this.key.target.position.copy(this.focus);
     this.key.position.copy(this.focus).addScaledVector(KEY_DIRECTION, half * 2.5);
+  }
+
+  /** Key light shadow map size (quality fallback; the sandbox uses 2048). */
+  setShadowMapSize(size: number): void {
+    if (this.key.shadow.mapSize.x === size) return;
+    this.key.shadow.mapSize.set(size, size);
+    // Reallocated at the new size on the next render.
+    this.key.shadow.map?.dispose();
+    this.key.shadow.map = null;
   }
 
   private buildTerraces(): void {

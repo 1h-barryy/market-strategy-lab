@@ -7,7 +7,8 @@ import { palette } from '../world/shared/palette';
 export class Renderer {
   readonly webgl: THREE.WebGLRenderer;
   private readonly labels = new CSS2DRenderer();
-  private readonly post: PostProcessing;
+  /** The art system's post chain (bloom); exposed for the quality fallback. */
+  readonly post: PostProcessing;
   private readonly observer: ResizeObserver;
   private readonly resizeHandlers = new Set<(width: number, height: number) => void>();
   width = 1;
