@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { Path } from '../../model/process';
+import { addGlowAttribute, luminousInstanced } from '../../art/materials';
+import { GLOW } from '../../art/palette';
 import { palette } from '../../world/shared/palette';
 import { EXTENT, type TerrainMapping } from './mapping';
 
@@ -21,7 +23,10 @@ export class Walkers {
 
   constructor(private readonly mapping: TerrainMapping, private readonly count = 5) {
     const radius = mapping.unit * 1.6;
-    this.mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(radius, 12, 8), new THREE.MeshBasicMaterial(), count);
+    // Moving data glows in its own color (art sandbox `luminous`).
+    const geometry = new THREE.SphereGeometry(radius, 12, 8);
+    addGlowAttribute(geometry, count, GLOW.particle);
+    this.mesh = new THREE.InstancedMesh(geometry, luminousInstanced(), count);
     this.mesh.name = 'Walkers';
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;

@@ -91,6 +91,7 @@ export class TerrainSurfaces {
     this.terrain = new THREE.Mesh(terrainGeometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, side: THREE.DoubleSide }));
     this.ghost = new THREE.Mesh(gridGeometry(m.rows, m.columns), new THREE.MeshBasicMaterial({ color: palette.neutral, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }));
     this.terrain.name = 'TerrainSurface';
+    this.terrain.castShadow = this.terrain.receiveShadow = true;
     this.ghost.name = 'GhostSurface';
     this.ghost.renderOrder = 1;
 
