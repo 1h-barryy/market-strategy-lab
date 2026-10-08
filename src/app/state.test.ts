@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BATCH_SIZE, DEFAULT_BOARD_DAYS, DEFAULT_PARAMS, PATH_DAYS, Store, createState, withBoardDays, withParams } from './state';
+import { BATCH_SIZE, DEFAULT_BOARD_DAYS, DEFAULT_PARAMS, PATH_DAYS, Store, createState, withBoardDays, withMystery, withMysteryRevealed, withParams, withoutMystery } from './state';
 
 describe('app state', () => {
   it('starts with the default world and a full batch', () => {
@@ -58,5 +58,38 @@ describe('app state', () => {
     expect(daysListener).toHaveBeenCalledOnce();
     expect(() => withBoardDays(store.state, 7)).toThrow(RangeError);
     expect(() => withBoardDays(store.state, 25)).toThrow(RangeError);
+  });
+});
+
+describe('mystery machine', () => {
+  const secret = { tilt: 0.02, rho: -0.35, seed: 77 };
+
+  it("switches to the secret settings, keeps the player's own, and restores them at the end", () => {
+    const own = withParams(createState(), { tilt: -0.05, rho: 0.4 });
+    const mystery = withMystery(own, secret);
+    expect(mystery.params).toMatchObject(secret);
+    expect(mystery.batch.params).toMatchObject(secret);
+    expect(mystery.mystery).toEqual({ own: { tilt: -0.05, rho: 0.4, seed: DEFAULT_PARAMS.seed }, revealed: false });
+    const back = withoutMystery(mystery);
+    expect(back.params).toEqual(own.params);
+    expect(back.mystery).toBeNull();
+  });
+
+  it('keeps the original own settings across a new mystery', () => {
+    const own = withParams(createState(), { rho: 0.4 });
+    const second = withMystery(withMysteryRevealed(withMystery(own, secret)), { tilt: 0, rho: 0, seed: 78 });
+    expect(second.mystery).toEqual({ own: { tilt: 0, rho: 0.4, seed: DEFAULT_PARAMS.seed }, revealed: false });
+  });
+
+  it('announces the new batch before the mystery change', () => {
+    const store = new Store();
+    const events: string[] = [];
+    store.on('batch', () => events.push('batch'));
+    store.on('mystery', (state) => events.push(state.mystery ? (state.mystery.revealed ? 'revealed' : 'started') : 'ended'));
+    store.startMystery(secret);
+    store.revealMystery();
+    store.revealMystery();
+    store.endMystery();
+    expect(events).toEqual(['batch', 'started', 'revealed', 'batch', 'ended']);
   });
 });

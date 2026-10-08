@@ -22,6 +22,8 @@ export interface Copy {
     days: { label: string; value: (n: number) => string; fewer: string; more: string };
     locked: string;
     reset: string;
+    /** Shown instead of Mood and Yesterday while a mystery machine is active. */
+    mystery: string;
   };
   captions: {
     needMore: (landed: number) => string;
@@ -50,6 +52,7 @@ export interface Copy {
     streak: (days: number, up: boolean) => string;
   };
   terrain: TerrainCopy;
+  test: TestCopy;
   errors: { noWebgl: string; noWebglDetail: string };
 }
 
@@ -68,6 +71,56 @@ export interface TerrainCopy {
     narrower: string;
     same: string;
     unclear: string;
+  };
+}
+
+export type VerdictKey = 'sawThrough' | 'fooledYourself' | 'justLuck';
+export type RevealKey = 'found' | 'falseAlarm' | 'nothingThere' | 'missed' | 'missedWrongWay';
+
+export interface TestCopy {
+  header: { title: string; tagline: string; hint: string };
+  legend: readonly string[];
+  intro: {
+    steps: readonly [IntroText, IntroText];
+    free: IntroText;
+    backToTerrain: string;
+    backToBoard: string;
+    continueToTest: string;
+  };
+  direction: { label: string; follow: string; followHint: string; against: string; againstHint: string };
+  table: { memory: string; nerve: string; days: (n: number) => string; nerveValue: (multiple: number) => string };
+  rule: {
+    heading: string;
+    summary: (direction: string, days: number) => string;
+    /** One sentence; `percent` null means any move at all. */
+    sentence: (follow: boolean, days: number, percent: string | null) => string;
+    neverBets: string;
+    betsShare: (share: string) => string;
+  };
+  scores: { practice: string; fresh: string; help: string; value: (score: number) => string; pending: string };
+  actions: { test: string; luck: string; checking: string };
+  pile: { caption: string; you: (score: string) => string; p95: string; offChart: (score: string) => string };
+  verdict: Record<VerdictKey | 'neverBets', string>;
+  explain: {
+    sawThrough: (beaten: number, total: number) => string;
+    fooledYourself: (practiceBeaten: number, beaten: number, total: number) => string;
+    justLuck: (beaten: number, total: number) => string;
+    neverBets: string;
+  };
+  captions: { pick: string; noneEarn: string; someEarn: string; tested: string; checking: string };
+  mystery: {
+    start: string;
+    startHint: string;
+    active: string;
+    reveal: string;
+    revealHint: string;
+    newMystery: string;
+    backToMine: string;
+    revealedTitle: string;
+    settings: (mood: string, yesterday: string) => string;
+    outcome: Record<RevealKey, (yesterday: string) => string>;
+    chapterLines: readonly string[];
+    backToTest: string;
   };
 }
 
@@ -137,6 +190,7 @@ const en: Copy = {
     days: { label: 'Days', value: (n) => `${n} days`, fewer: 'Fewer days', more: 'More days' },
     locked: 'Unlocks in the next step',
     reset: 'Start over (R)',
+    mystery: "Mystery machine: the crowd's Mood and Yesterday are hidden. Read them from the stocks.",
   },
   captions: {
     needMore: (landed) => `Only ${landed} ${landed === 1 ? 'stock' : 'stocks'} so far. Drop more to see a pattern.`,
@@ -208,6 +262,105 @@ const en: Copy = {
       narrower: "That's narrower than the ghost.",
       same: 'About the same as the ghost.',
       unclear: 'Too close to call against the ghost.',
+    },
+  },
+  test: {
+    header: {
+      title: 'Chapter 3 · The Test',
+      tagline: "If the crowd has habits, can you bet on them, and prove it wasn't luck?",
+      hint: 'Click a tile to pick a rule · arrow keys move between tiles · D: debug',
+    },
+    legend: [
+      'Each tile is a betting rule: Memory (rows) × Nerve (columns).',
+      'Height and glow: its score on the practice table. Warm: it earned. Cool and flat: it lost.',
+    ],
+    intro: {
+      steps: [
+        { lines: ["You're the gambler now. Each tile is a betting rule, scored on the practice table: the first 100 stocks from your machine.", 'Pick a tile. The tallest one looks best.'] },
+        { lines: ['Looking good on the practice table proves little: you picked the rule because it scored well on those same stocks.', 'Test it on new stocks, then check it against luck.'] },
+      ],
+      free: { lines: ['Try other rules and the other direction, change the crowd in Chapter 1, or take on a mystery machine.'] },
+      backToTerrain: '← Back to the terrain',
+      backToBoard: '← Back to the board',
+      continueToTest: 'Continue to the test →',
+    },
+    direction: {
+      label: 'How you bet',
+      follow: 'Follow the move',
+      followHint: 'Buy after a rise',
+      against: 'Bet against the move',
+      againstHint: 'Buy after a fall',
+    },
+    table: {
+      memory: 'Memory',
+      nerve: 'Nerve (× a typical move)',
+      days: (n) => `${n} days`,
+      nerveValue: (multiple) => (multiple === 0 ? 'any' : `${multiple}×`),
+    },
+    rule: {
+      heading: 'Your betting rule',
+      summary: (direction, days) => `${direction} · Memory: ${days} days`,
+      sentence: (follow, days, percent) => {
+        const move = follow
+          ? (percent === null ? 'rose at all' : `rose more than ${percent}`)
+          : (percent === null ? 'fell at all' : `fell more than ${percent}`);
+        return `Look back ${days} days. If the stock ${move}, hold it the next day.`;
+      },
+      neverBets: 'On the practice table this rule never bets: the move it waits for never happens.',
+      betsShare: (share) => `It holds a stock on ${share} of days.`,
+    },
+    scores: {
+      practice: 'Practice table',
+      fresh: 'New stocks, same crowd',
+      help: 'Score: profit for each unit of risk you took.',
+      value: (score) => score.toFixed(2),
+      pending: '—',
+    },
+    actions: { test: 'Test it on new stocks', luck: 'Check against luck', checking: 'Checking against luck…' },
+    pile: {
+      caption: 'Your rule on 200 crowds with no habits (same Mood, ignores yesterday)',
+      you: (score) => `Your rule on new stocks: ${score}`,
+      p95: '95% of luck scores fall below this',
+      offChart: (score) => `Your rule on new stocks: ${score}, far off the chart`,
+    },
+    verdict: {
+      sawThrough: 'You saw through the machine',
+      fooledYourself: 'You fooled yourself',
+      justLuck: 'Just luck',
+      neverBets: 'Just luck: this rule never bets',
+    },
+    explain: {
+      sawThrough: (beaten, total) => `On new stocks your rule beat ${beaten} of ${total} crowds with no habits. Luck alone does that less than 1 time in 20, so this crowd has a habit your rule can use.`,
+      fooledYourself: (practiceBeaten, beaten, total) => `On the practice table your rule beat ${practiceBeaten} of ${total} luck crowds, but on new stocks only ${beaten}. You chose it because it looked best on those same stocks, so part of its score was luck.`,
+      justLuck: (beaten, total) => `On new stocks your rule beat ${beaten} of ${total} crowds with no habits. Crowds with no habits do that well often enough, so this proves nothing.`,
+      neverBets: "A rule that never bets can't win or lose. Pick a tile with less Nerve, or try the other direction.",
+    },
+    captions: {
+      pick: 'Pick a tile to choose your betting rule.',
+      noneEarn: 'No rule in this direction earned on the practice table. Try the other direction.',
+      someEarn: 'Tall, glowing tiles earned on the practice table. Is the tallest one real, or luck?',
+      tested: 'Now check it against luck: how well does the same rule do on crowds with no habits?',
+      checking: 'Running your rule on 200 crowds with no habits…',
+    },
+    mystery: {
+      start: 'Try a mystery machine',
+      startHint: 'The game picks a secret crowd. Find its habit, or find that it has none.',
+      active: "Mystery machine: the crowd's Mood and Yesterday are secret. Read them on the board and the terrain, then bet.",
+      reveal: 'Reveal the machine',
+      revealHint: 'Get a verdict first, then reveal.',
+      newMystery: 'New mystery',
+      backToMine: 'Back to my machine',
+      revealedTitle: 'The machine was',
+      settings: (mood, yesterday) => `Mood: ${mood}. Yesterday: ${yesterday}.`,
+      outcome: {
+        found: () => 'Your verdict matched: there was a habit, and your rule bet on it.',
+        falseAlarm: () => 'A false alarm: your rule passed, but not because of a habit it bets on. Luck does this about 1 time in 20.',
+        nothingThere: () => 'Your verdict matched: there was nothing to find.',
+        missed: (yesterday) => `There was a habit (${yesterday.toLowerCase()}), but your test didn't catch it.`,
+        missedWrongWay: (yesterday) => `There was a habit (${yesterday.toLowerCase()}), but your rule bet the other way.`,
+      },
+      chapterLines: ['Mystery machine: the crowd is secret. Drop stocks and read the pile, then go back to the test.'],
+      backToTest: 'Back to the test →',
     },
   },
   errors: { noWebgl: '3D VIEW UNAVAILABLE', noWebglDetail: 'WebGL could not start. Reload to retry.' },
