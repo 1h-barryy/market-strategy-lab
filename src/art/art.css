@@ -1,0 +1,36 @@
+/*
+ * Art sandbox UI tones (iteration 03): ceramic text, sage-graphite translucent panels with a blur.
+ * Loaded after ui/styles.css. Only colors and surfaces change; layout stays the project's.
+ */
+:root {
+  color: #e9dccd;
+  --panel: #242e31db;
+  --panel-line: #e9dccd22;
+  --muted: #b2c8c3;
+}
+
+.panel,
+.board-controls,
+.hud-debug {
+  background: var(--panel);
+  border-color: var(--panel-line);
+  backdrop-filter: blur(15px);
+  box-shadow: 0 15px 35px #15202222;
+}
+
+.caption-box { border-color: var(--panel-line); }
+
+/* The sky is light in the gallery atmosphere: text that sits on the scene gets a soft dark halo. */
+.hud-title,
+.hud-title .eyebrow,
+.hud-title .tagline,
+.hint,
+.legend {
+  color: #e9dccdd9;
+  text-shadow: 0 1px 2px #1c2224cc, 0 0 10px #1c2224aa;
+}
+
+.scene-label {
+  color: #d5ded7;
+  text-shadow: 0 1px 2px #1c2224e6, 0 0 6px #1c2224b3;
+}

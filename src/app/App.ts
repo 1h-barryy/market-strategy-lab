@@ -1,3 +1,4 @@
+import { WorldArt } from '../art';
 import { BoardChapter } from '../chapters/board/BoardChapter';
 import { TerrainChapter } from '../chapters/terrain/TerrainChapter';
 import { TestChapter } from '../chapters/test/TestChapter';
@@ -20,6 +21,7 @@ export class App {
   private readonly stage = new Stage();
   private readonly motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   private renderer?: Renderer;
+  private world?: WorldArt;
   private input?: Input;
   private chapters?: ChapterManager;
 
@@ -34,6 +36,7 @@ export class App {
       this.fail();
       return;
     }
+    this.world = new WorldArt(this.stage.scene, this.renderer.webgl);
     this.input = new Input(this.renderer.canvas);
     this.renderer.onResize((width, height) => this.stage.rig.setAspect(width / height));
     const context: ChapterContext = {
@@ -70,6 +73,7 @@ export class App {
       this.chapters!.update(dt);
       this.stage.rig.update(dt, this.motion.matches);
     });
+    this.world?.update(this.stage.camera);
     this.chapters.render();
   };
 
@@ -84,6 +88,7 @@ export class App {
     this.renderer?.setLoop(null);
     this.chapters?.dispose();
     this.input?.dispose();
+    this.world?.dispose();
     this.renderer?.dispose();
     this.store.clear();
     this.root.replaceChildren();

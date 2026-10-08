@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { PostProcessing, configureRenderer } from '../art';
 import { palette } from '../world/shared/palette';
 
-/** One WebGL renderer plus a CSS2D layer for scene-anchored text labels. */
+/** One WebGL renderer (with the art system's post chain) plus a CSS2D layer for scene-anchored text labels. */
 export class Renderer {
   readonly webgl: THREE.WebGLRenderer;
   private readonly labels = new CSS2DRenderer();
+  private readonly post: PostProcessing;
   private readonly observer: ResizeObserver;
   private readonly resizeHandlers = new Set<(width: number, height: number) => void>();
   width = 1;
@@ -14,6 +16,8 @@ export class Renderer {
   constructor(private readonly container: HTMLElement, private readonly onContextLost: () => void) {
     this.webgl = new THREE.WebGLRenderer({ antialias: true });
     this.webgl.setClearColor(palette.background);
+    configureRenderer(this.webgl);
+    this.post = new PostProcessing(this.webgl);
     this.webgl.domElement.setAttribute('role', 'img');
     this.webgl.domElement.setAttribute('aria-label', 'Galton board simulation');
     this.labels.domElement.className = 'scene-labels';
@@ -39,7 +43,7 @@ export class Renderer {
   }
 
   render(scene: THREE.Scene, camera: THREE.Camera): void {
-    this.webgl.render(scene, camera);
+    this.post.render(scene, camera);
     this.labels.render(scene, camera);
   }
 
@@ -48,8 +52,10 @@ export class Renderer {
     if (width <= 0 || height <= 0) return;
     this.width = width;
     this.height = height;
-    this.webgl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const pixelRatio = Math.min(window.devicePixelRatio, 2);
+    this.webgl.setPixelRatio(pixelRatio);
     this.webgl.setSize(width, height);
+    this.post.setSize(width, height, pixelRatio);
     this.labels.setSize(width, height);
     for (const handler of this.resizeHandlers) handler(width, height);
   };
@@ -65,6 +71,7 @@ export class Renderer {
     this.observer.disconnect();
     this.resizeHandlers.clear();
     this.webgl.domElement.removeEventListener('webglcontextlost', this.contextLost);
+    this.post.dispose();
     this.webgl.dispose();
     this.webgl.domElement.remove();
     this.labels.domElement.remove();

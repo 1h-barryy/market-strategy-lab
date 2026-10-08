@@ -65,7 +65,7 @@ export class CameraRig {
   }
 }
 
-/** The one scene, camera and lighting shared by every chapter (DESIGN.md §7). */
+/** The one scene and camera shared by every chapter (DESIGN.md §7). Sky, fog and lights come from the art system (art/world.ts). */
 export class Stage {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(35, 1, 0.1, 800);
@@ -73,10 +73,6 @@ export class Stage {
 
   constructor() {
     this.scene.background = new THREE.Color(palette.background);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x30343c, 1.6));
-    const key = new THREE.DirectionalLight(0xffffff, 1.8);
-    key.position.set(-4, 10, 12);
-    this.scene.add(key);
   }
 }
 
