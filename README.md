@@ -39,7 +39,7 @@ npm run build
 npm run preview
 ```
 
-Open the local URL printed by Vite, under `/2025-10-07_market-strategy-lab/`.
+Open the local URL printed by Vite, under `/market-strategy-lab/`.
 
 Source responsibilities:
 
@@ -73,7 +73,7 @@ src/
 
 ## Secrets and deployment
 
-The app is entirely client-side and requires no secrets or backend. Vite uses the base path `/2025-10-07_market-strategy-lab/`, matching the GitHub repository name; Three.js is built as its own chunk. The workflow in `.github/workflows/deploy.yml` tests, builds, and deploys `dist` on pushes to `main` or manual dispatch. In the repository, choose **Settings → Pages → Source → GitHub Actions**. If your deployment branch differs, update the workflow trigger. Deployment has not been run or verified.
+The app is entirely client-side and requires no secrets or backend. Vite uses the base path `/market-strategy-lab/`, matching the GitHub repository name; Three.js is built as its own chunk. The workflow in `.github/workflows/deploy.yml` tests, builds, and deploys `dist` on pushes to `main` or manual dispatch. In the repository, choose **Settings → Pages → Source → GitHub Actions**. If your deployment branch differs, update the workflow trigger. Deployment has not been run or verified.
 
 <!-- State whether the implemented app uses secrets/backend services. For the intended static MVP: no private keys belong in the frontend or repository. Describe actual hosting. -->
 

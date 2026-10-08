@@ -322,7 +322,7 @@ Data: fully simulated; no real market data in v1.
 Reproducibility: every data-producing simulation is seeded.
 Performance: 60 fps target on a mid-range laptop; ≤ 2 MB of assets per chapter; JS bundle split so Three.js is its own chunk.
 Accessibility: keyboard-operable controls, reduced-motion support, readable contrast on HUD.
-Deploy: GitHub repo 2025-10-07_market-strategy-lab; vite.config.ts base is '/2025-10-07_market-strategy-lab/'. If the repo is renamed, base must change with it.
+Deploy: GitHub repo 1h-barryy/market-strategy-lab, served at https://1h-barryy.github.io/market-strategy-lab/; vite.config.ts base is '/market-strategy-lab/'. If the repo is renamed, base must change with it.
 Timeline: TBD.
 11. Milestones
 P0 — Prototype: the model and the board (done)
