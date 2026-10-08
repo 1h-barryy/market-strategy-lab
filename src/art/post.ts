@@ -10,7 +10,9 @@ export const BLOOM = { strength: 0.42, radius: 0.4, threshold: 1.05 } as const;
 /** Renderer settings from the sandbox: soft shadows, sRGB output, ACES filmic tone mapping. */
 export function configureRenderer(renderer: THREE.WebGLRenderer): void {
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // The sandbox asked for PCFSoftShadowMap, which three r186 removed (it falls back to PCF with a
+  // warning); PCF with the key light's shadow radius gives the same soft edge.
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.98;
