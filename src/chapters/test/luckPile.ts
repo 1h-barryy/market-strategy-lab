@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { luminous, matte } from '../../art/materials';
+import { art, GLOW } from '../../art/palette';
 import { copy } from '../../content/copy';
 import { disposeObject } from '../../core/Renderer';
 import { LUCK_BATCHES } from '../../model/backtest';
@@ -49,8 +51,9 @@ export class LuckPile {
     this.group.name = 'LuckPile';
     const backplate = new THREE.Mesh(
       new THREE.PlaneGeometry(PILE.right - PILE.left + 1.2, PILE.height + 1.4),
-      new THREE.MeshStandardMaterial({ color: palette.board, roughness: 0.95 }),
+      matte(art.feet),
     );
+    backplate.receiveShadow = true;
     backplate.position.set((PILE.left + PILE.right) / 2, FLOOR + (PILE.height + 1.4) / 2 - 0.2, PILE.z - 0.4);
     const axis = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(PILE.left, FLOOR, PILE.z), new THREE.Vector3(PILE.right, FLOOR, PILE.z)]),
@@ -60,7 +63,9 @@ export class LuckPile {
     this.balls = new THREE.InstancedMesh(sphere, new THREE.MeshStandardMaterial({ color: palette.neutral, roughness: 0.4 }), LUCK_BATCHES);
     this.balls.count = 0;
     this.balls.frustumCulled = false;
-    this.you = new THREE.Mesh(sphere, new THREE.MeshStandardMaterial({ color: palette.accent, emissive: palette.accent, emissiveIntensity: 0.35, roughness: 0.35 }));
+    this.balls.castShadow = this.balls.receiveShadow = true;
+    // The player's ball is the selection marker (art sandbox: luminous selection).
+    this.you = new THREE.Mesh(sphere, luminous(palette.accent, GLOW.selection));
     this.marker = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, FLOOR, PILE.z + 0.05), new THREE.Vector3(0, FLOOR + PILE.height, PILE.z + 0.05)]),
       new THREE.LineDashedMaterial({ color: palette.neutral, dashSize: 0.18, gapSize: 0.12, transparent: true, opacity: 0.8 }),

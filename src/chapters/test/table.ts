@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { roundedBox } from '../../art/geometry';
+import { matte as matteMaterial } from '../../art/materials';
 import { copy } from '../../content/copy';
 import { disposeObject } from '../../core/Renderer';
 import { GRID_SIZE, LOOKBACKS, NERVES, cellAt } from '../../model/strategy';
@@ -30,10 +32,9 @@ export class BettingTable {
   constructor() {
     this.group.name = 'BettingTable';
     const halfWidth = tableHalfWidth;
-    const slab = new THREE.Mesh(
-      new THREE.BoxGeometry(halfWidth * 2, TABLE.slab, halfWidth * 2),
-      new THREE.MeshStandardMaterial({ color: palette.board, roughness: 0.9 }),
-    );
+    // A graphite tray like the instrument's (art sandbox: rounded, matte).
+    const slab = new THREE.Mesh(roundedBox([halfWidth * 2, TABLE.slab, halfWidth * 2], 0.09), matteMaterial(palette.board));
+    slab.castShadow = slab.receiveShadow = true;
     slab.position.set(TABLE.x, FLOOR + TABLE.slab / 2, TABLE.z);
     this.group.add(slab);
 
@@ -43,6 +44,7 @@ export class BettingTable {
       const tile = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: matte, roughness: 0.55 }));
       tile.position.set(tileX(nerve), tableTop, tileZ(memory));
       tile.userData.cell = i;
+      tile.castShadow = tile.receiveShadow = true;
       this.heights[i] = this.targets[i] = TABLE.base;
       tile.scale.y = TABLE.base;
       this.tiles.push(tile);
