@@ -1,13 +1,14 @@
 Market Under Stress — Design Document
 
-Version: 0.5 (supersedes v0.2)
+Version: 0.6 (supersedes v0.2)
 
-Changelog: 0.5: every path is 250 days, the board shows the first n (open question 1 resolved); Chapter 2 rewritten as a terrain behind the board in one continuous scene, with ghost surface, day scrub, captions and % axis extent; Chapter 2 vocabulary; P0.5 done, P1 scoped.
+Changelog: 0.6: Chapter 3 rewritten as a playable spec (betting table in the shared scene, two rounds, the mystery machine as finale); Chapter 3 vocabulary; mystery machine promoted from Later into P2; open questions 1 and 3 resolved; P1 done.
+0.5: every path is 250 days, the board shows the first n (open question 1 resolved); Chapter 2 rewritten as a terrain behind the board in one continuous scene, with ghost surface, day scrub, captions and % axis extent; Chapter 2 vocabulary; P0.5 done, P1 scoped.
 0.4.1: the ρ control is called Yesterday for players (Herd stays the internal name); "stocks" used consistently in player text; mood captions say "overall".
 0.4: framing (pinball machine, stocks, days, the crowd), player vocabulary that hides model symbols, Chapter 1 rewritten with guided intro, live captions and visible Herd; legibility principle; P0.5 milestone inserted, P0 done.
 0.3.1: drift and inertia re-parameterized to be independent (stationary π + ρ); ghost/luck baseline defined as same π, ρ = 0; P0 board decisions recorded; deploy base path set to the repo name.
 
-Status: Pre-production. P0 and P0.5 done: tested shared model and a legible, playable Chapter 1 (plain-language controls, captions, intro, debug overlay). P1 (Chapter 2, The Terrain) in progress. Working title: Market Under Stress (subject to change)
+Status: Pre-production. P0, P0.5 and P1 done: tested shared model, a legible, playable Chapter 1 and Chapter 2 (The Terrain). P2 (Chapter 3, The Test) in progress. Working title: Market Under Stress (subject to change)
 
 1. Vision
 
@@ -55,6 +56,18 @@ spread growing with t	the valley opening up: "the future getting less certain"
 ρ = 0 surface, same π	ghost surface: "if the crowd ignored yesterday" (same wording as Chapter 1); a constant-height ridge because heights are scaled per day by the ghost's peak
 VR(q) > 1 / < 1	"Chases it" makes the valley open faster than the ghost; "Turns against it" makes it open slower. Said in plain words, and only once enough data supports it.
 interquartile range per day	"the middle half of stocks" (lines along the valley)
+
+Chapter 3 (The Test). One-line idea: "If the crowd has habits, can you bet on them, and prove it wasn't luck?"
+Model	Player sees
+strategy	your betting rule
+direction	"Follow the move" (buy after a rise) / "Bet against the move" (buy after a fall)
+lookback N	Memory: how many days back you look
+threshold k	Nerve: how big the move must be before you bet
+Sharpe	Score: profit for each unit of risk you took
+train batch	the practice table
+out-of-sample	new stocks, same crowd
+null baseline	a crowd with no habits (same Mood, Yesterday = "Ignores it")
+verdicts	"You saw through the machine" / "You fooled yourself" / "Just luck"
 
 Player text always says "stock", never "ball"; "ball" appears only in code and the debug overlay. Captions describe the pile overall ("pushing stocks up overall"), never every stock.
 
@@ -226,47 +239,49 @@ Then free play.
 
 Navigation
 Chapter 1 free play offers "Continue to the terrain"; Chapter 2 offers "Back to the board". The camera move is the transition.
-6. Chapter 3 — The Test
+6. Chapter 3 — The Test (P2)
 
-Role: The player bets on the structure and must prove it.
+Role: the gambler. "If the crowd has habits, can you bet on them, and prove it wasn't luck?" Vocabulary in §1.2; model names stay internal.
 
-6.1 Strategy: momentum rule
+6.1 Model (src/model/, pure, tested)
 
-Two parameters:
+strategy.ts: long/flat only. Follow: if the log-return over the last N days > k, hold the stock for the next day. Against: if it is < −k, hold it. Otherwise flat. The decision for day t + 1 uses only data up to day t (tested for no look-ahead).
+Grid (6 × 6 = 36 rules, for the selected direction): N ∈ {2, 4, 8, 16, 32, 64}; k ∈ {0, 0.5, 1.0, 1.5, 2.0, 2.5} × σ_step·√N.
+backtest.ts: per-day strategy return = position × that day's log-return. Score = Sharpe pooled over all stocks and scored days in a batch, × √250. Every rule is scored on the same days, 65–250 (the first days on which the longest Memory can decide), so tiles compare like for like. A rule that never bets scores 0.
 
-Lookback N: look at the last N steps.
-Threshold k: if the cumulative return over the last N steps exceeds k, hold the asset for the next step; otherwise stay flat (long/flat only).
+Batches (250 days each):
+practice: the first 100 stocks of the shared batch, i.e. the stocks the board drops first (resolves open question 1)
+new stocks: 100 stocks, same machine, fresh seed
+luck baseline: 200 batches × 100 stocks, same π and σ_step, ρ = 0, using the player's chosen rule. Drift does not depend on ρ (§3.1), so drift alone cannot pass as an edge.
 
-Parameter grid (6 × 6 = 36 strategies):
+Verdict, with p95 = 95th percentile of the luck baseline:
+saw through ("You saw through the machine"): new-stocks score > p95
+fooled yourself: practice score > p95 but new-stocks score ≤ p95
+just luck: otherwise
 
-N ∈ {2, 4, 8, 16, 32, 64}
-k ∈ {0, 0.5, 1.0, 1.5, 2.0, 2.5} × σ_step · √N (threshold scales with expected move)
-6.2 Score: Sharpe ratio
+The baseline does not account for picking the best of 36 tiles; that lesson stays in Later (resolves open question 3). Picking the best tile is exactly what "You fooled yourself" catches on new stocks.
 
-Pool the strategy's per-step returns across all paths in a batch:
+Tests: no look-ahead; Sharpe on a known series; with ρ = 0 the "saw through" rate is about 5% or less across seeds; with ρ = 0.6 and Follow the best rule usually passes; with ρ = −0.5, Against usually passes and Follow does not.
 
-Sharpe = mean(strategy returns) / std(strategy returns) × √(steps per "year")
+Compute: grid 36 × 100 × 250 ≈ 0.9M steps; luck 200 × 100 × 250 = 5M steps. Main thread, no worker.
 
-"Return per unit of risk." Steps per year is a display constant (e.g. 250).
+6.2 Round 1: your own machine
+1. The betting table: 6 × 6 tiles on the floor in front of the board, in the same continuous scene; the camera glides down and forward to an elevated view of the table with the board behind it. Tile height and glow = practice score (warm above zero, cool below). The direction toggle switches the table.
+2. The player clicks a tile (or uses the arrow keys) to choose a rule; the panel shows its Memory and Nerve in plain words and its practice score.
+3. "Test it on new stocks": the new score appears next to the practice score.
+4. "Check against luck": the luck baseline drops in as a pile of 200 scores stacked into bins beside the table, with the player's new-stocks score as a distinct accent ball and a marker at p95.
+5. Verdict with one or two plain sentences explaining why.
 
-6.3 The three-step test
-Train (in-sample). Run all 36 strategies on batch A (100 paths, seed A). The grid lights up by score. The player picks a cell; the brightest is the obvious pick.
-Out-of-sample. Generate batch B from the same world (same tilt, σ, ρ; new seed). Run the chosen strategy. The drop from train to out-of-sample is the overfitting gap.
-Luck baseline (null test). Run the chosen strategy on 200 batches from a world with the same π (same drift) and σ_step but ρ = 0. This gives the distribution of scores luck alone can produce (including any drift the strategy earns just by being long). Because drift does not depend on ρ (§3.1), the baseline earns exactly the same drift as the real world, so drift alone cannot pass as an edge. Place the out-of-sample score in that distribution.
-6.4 Verdict
+6.3 Round 2: the mystery machine (the finale)
+"Try a mystery machine": the game secretly picks Mood from a moderate range (Calm to a little either way) and Yesterday from {Turns against it, a little against, Ignores it, a little chasing, Chases it}. "Ignores it" is included so that sometimes there is nothing to find.
+While the mystery is active, the Mood and Yesterday controls are hidden in every chapter. The board and terrain show the mystery machine, so the player can go back to Chapters 1 and 2 to read it.
+The player builds and tests a rule as in Round 1; once there is a verdict, "Reveal the machine" shows the real settings in player words and whether the verdict matched reality (found the habit, a false alarm, a missed habit, or correctly nothing there).
+"New mystery" picks again; "Back to my machine" restores the player's own settings.
 
-Let p95 be the 95th percentile of the luck baseline.
-
-Verdict	Condition	Meaning
-Edge	out-of-sample > p95	The strategy exploits real structure
-Overfit	train > p95 but out-of-sample ≤ p95	It looked real only on the data it was tuned on
-Luck / no edge	train ≤ p95 and out-of-sample ≤ p95	Indistinguishable from noise
-6.5 Compute budget
-Grid: 36 × 100 paths × 250 steps ≈ 0.9M steps
-Null: 200 × 100 × 250 = 5M steps
-
-Both run on the main thread in well under a second. No Web Worker needed at this scale.
-
+6.4 Captions, intro, navigation
+Captions and verdict explanations: short, plain, honest; pure tested functions, same style as Chapters 1 and 2.
+Intro (skippable, replayable): 1. the table: pick a tile; 2. prove it: test on new stocks, then check against luck. Then free play.
+Chapter 2 free play offers "Continue to the test →"; Chapter 3 links back to the terrain and the board.
 7. Navigation & Structure
 One continuous scene: one renderer, one scene, one camera rig shared by all chapters. Each chapter owns its objects in the scene and shows or hides them; the chapter manager switches which chapter is active and the camera rig moves between the chapters' views.
 Full-screen canvas. UI is a minimal overlay (HUD), not a dashboard.
@@ -298,8 +313,8 @@ src/
 │   ├── random.ts      seeded RNG
 │   ├── process.ts     step/price process with tilt, σ, ρ
 │   ├── stats.ts       histograms, density, variance ratio
-│   ├── strategy.ts    momentum rule
-│   └── backtest.ts    Sharpe, grid run, OOS, null distribution, verdict
+│   ├── strategy.ts    betting rule (Follow / Against, Memory, Nerve), grid
+│   └── backtest.ts    pooled Sharpe, practice / new stocks / luck batches, verdict
 ├── chapters/
 │   ├── types.ts       Chapter { load, enter, update(dt), exit, dispose }
 │   ├── board/         Chapter 1
@@ -344,7 +359,7 @@ Live captions from measured stats vs. the "ignored yesterday" baseline, as a tes
 Guided intro: premise → Mood → Yesterday → free play; skippable and replayable
 Yesterday (Herd) visible on falling stocks (color + short trail of the previous move)
 Inspected ball in plain words
-P1 — The Terrain
+P1 — The Terrain (done)
 
 Goal: a player can say, without numbers, whether this crowd's future opens faster or slower than the ghost, and why.
 
@@ -358,11 +373,12 @@ Navigation (Continue / Back) and a two-step skippable intro
 Debug overlay for Chapter 2
 P2 — The Test
 model/strategy.ts, model/backtest.ts with tests
-Grid view, train → out-of-sample → null flow, verdict display
+Betting table in the shared scene, practice → new stocks → luck flow, luck pile, verdict with plain explanation
+Mystery machine (finale): hidden Mood and Yesterday, reveal, verdict vs. reality; crowd controls hidden in every chapter while it is active
+Two-step intro, navigation from Chapter 2, tested caption and verdict rules
 P3 — Art pass
 Palette, emissive materials, bloom, trails, matte solids, modeled controls, chapter transitions, HUD typography
 Later
-Mystery market: the system hides ρ; the player infers it from the terrain and confirms with the test
 Selection-bias lesson: null distribution of the best of 36 strategies, showing why trying many strategies inflates results
 Transaction costs, short selling
 Sentiment shocks / jumps (fat tails)
@@ -370,6 +386,5 @@ Diversification chapter
 Free-roaming shared world (beyond the board-and-terrain scene)
 12. Open Questions
 Resolved in 0.5: paths are 250 days; the board shows the first n_board (see §3.2).
-Does Chapter 3 use Chapter 1's exact batch as the training set, or always a fresh batch from the same parameters?
+Resolved in 0.6: the practice table is the first 100 stocks of the shared batch (§6.1); the luck baseline does not yet account for selection across the 36 tiles (§6.1, Later).
 Physical form of the inertia control: a dial, a weight on the board, or something on the balls themselves (spin, color)?
-Should the luck baseline in v1 already account for selection across the 36-cell grid, or keep that for the later lesson?
