@@ -98,3 +98,37 @@ button.link:hover { color: var(--neutral); }
   .hud-title h1 { font-size: 18px; }
   .hud-debug { right: 12px; top: auto; bottom: 12px; font-size: 10px; }
 }
+
+/* Chapter 3: the test */
+.control[hidden], .mystery-note[hidden] { display: none; }
+.test-controls { display: flex; flex-direction: column; gap: 12px; }
+.toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+.toggle-option { display: grid; gap: 2px; padding: 7px 8px; border: 1px solid #3a3f4a; border-radius: 6px; background: #1c1f26; color: #adb5bd; text-align: left; }
+.toggle-option strong { font-size: 13px; font-weight: 600; }
+.toggle-option small { font-size: 11px; }
+.toggle-option[aria-pressed='true'] { border-color: var(--neutral); background: #2a2e38; color: var(--neutral); }
+.rule h2, .verdict h2, .reveal h2 { margin: 0 0 4px; font-size: 14px; }
+.rule h2 { color: var(--accent); }
+.rule p { margin: 0 0 3px; font-size: 13px; line-height: 1.45; }
+.rule .rule-bets { color: #adb5bd; font-size: 12px; }
+.rule [hidden] { display: none; }
+.scores { display: grid; gap: 3px; margin: 0; }
+.scores div { display: flex; justify-content: space-between; font-size: 13px; }
+.scores dt { color: #adb5bd; }
+.scores dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.test-panel .actions { margin-top: 0; }
+.test-panel button.primary[hidden], .mystery-panel button[hidden] { display: none; }
+button.primary:disabled { opacity: 0.55; cursor: progress; filter: none; }
+.verdict { padding: 10px 12px; border-radius: 8px; border: 1px solid #3a3f4a; }
+.verdict[hidden], .reveal[hidden], .mystery-text[hidden], .mystery-panel .control-subtitle[hidden] { display: none; }
+.verdict p, .reveal p, .mystery-text { margin: 0; font-size: 13px; line-height: 1.45; }
+.verdict[data-kind='sawThrough'] { border-color: var(--up); }
+.verdict[data-kind='sawThrough'] h2 { color: var(--up); }
+.verdict[data-kind='fooledYourself'] { border-color: var(--down); }
+.verdict[data-kind='fooledYourself'] h2 { color: var(--down); }
+.reveal p + p { margin-top: 4px; }
+.mystery-panel .actions { flex-wrap: wrap; margin-top: 0; }
+.table-label { font-size: 10px; }
+.tile-score { font-size: 12px; color: var(--accent); font-weight: 600; }
+.you-label { color: var(--accent); }
+.p95-label { font-size: 10px; }

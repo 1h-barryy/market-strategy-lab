@@ -1,5 +1,6 @@
 import { BoardChapter } from '../chapters/board/BoardChapter';
 import { TerrainChapter } from '../chapters/terrain/TerrainChapter';
+import { TestChapter } from '../chapters/test/TestChapter';
 import type { ChapterContext } from '../chapters/types';
 import { ChapterManager } from '../core/ChapterManager';
 import { Clock } from '../core/Clock';
@@ -52,6 +53,7 @@ export class App {
     this.chapters = new ChapterManager(context);
     this.chapters.register(new BoardChapter());
     this.chapters.register(new TerrainChapter());
+    this.chapters.register(new TestChapter());
     this.chapters.goTo('board').then(
       () => this.renderer?.setLoop(this.frame),
       (error: unknown) => {

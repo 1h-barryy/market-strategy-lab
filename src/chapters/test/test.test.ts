@@ -4,6 +4,7 @@ import { mulberry32 } from '../../model/random';
 import { ruleAt } from '../../model/strategy';
 import { betsText, crowdWords, explainVerdict, nerveMove, revealText, ruleText, tableCaption } from './captions';
 import { advanceTest, canAdvanceTest, noteTest, startTestIntro, testFreePlay } from './intro';
+import { TABLE, pileLayout, scoreScale, tileGlow, tileHeight } from './mapping';
 import { MYSTERY_HABITS, MYSTERY_MOODS, pickMystery, revealOutcome } from './mystery';
 
 const result = (verdict: VerdictResult['verdict'], beaten = 120, practiceBeaten = 199): VerdictResult => ({ verdict, p95: 0.16, beaten, practiceBeaten });
@@ -106,5 +107,38 @@ describe('Chapter 3 intro', () => {
     state = noteTest(state, 'judged');
     expect(advanceTest(state).step).toBe('free');
     expect(canAdvanceTest(testFreePlay())).toBe(false);
+  });
+});
+
+describe('Chapter 3 mapping', () => {
+  it('keeps a no-habit table flat-ish and scales strong tables to their best tile', () => {
+    expect(scoreScale([0.2, -0.15])).toBe(1);
+    expect(scoreScale([6.4, -2])).toBe(6.4);
+    expect(tileHeight(-3, 1)).toBe(TABLE.base);
+    expect(tileHeight(6.4, 6.4)).toBeCloseTo(TABLE.base + TABLE.rise, 12);
+    expect(tileGlow(-0.5, 1)).toBe(0.5);
+  });
+
+  it('bins every luck score and keeps a nearby player score on the chart', () => {
+    const luck = Array.from({ length: 200 }, (_, i) => -0.2 + (0.4 * i) / 199);
+    const layout = pileLayout(luck, 0.25);
+    expect(Array.from(layout.counts).reduce((a, b) => a + b, 0)).toBe(200);
+    expect(typeof layout.player).toBe('number');
+    expect(layout.lo + layout.width * (layout.player as number)).toBeLessThanOrEqual(0.25);
+    expect(layout.lo + layout.width * ((layout.player as number) + 1)).toBeGreaterThan(0.25);
+  });
+
+  it('puts a far-away player score off the chart instead of squashing the pile', () => {
+    const luck = Array.from({ length: 200 }, (_, i) => (i % 20) / 100);
+    expect(pileLayout(luck, 6.5).player).toBe('right');
+    expect(pileLayout(luck, -6.5).player).toBe('left');
+    expect(pileLayout(luck, 6.5).bins).toBe(16);
+  });
+
+  it('handles a luck baseline where every score is 0 (a rule that never bets)', () => {
+    const layout = pileLayout(new Float64Array(200), 0);
+    expect(layout.width).toBeGreaterThan(0);
+    expect(Math.max(...layout.counts)).toBe(200);
+    expect(layout.player).toBe(layout.binOf[0]);
   });
 });

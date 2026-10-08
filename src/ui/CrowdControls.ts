@@ -62,6 +62,7 @@ export class CrowdControls {
   private readonly mood: Slider;
   private readonly herd: Slider;
   private readonly daysValue: HTMLElement;
+  private readonly mysteryNote = document.createElement('p');
   private n = 0;
   /** Slider changes waiting for the next frame: a drag regenerates the batch at most once per frame. */
   private pending: Partial<WorldParams> = {};
@@ -85,7 +86,10 @@ export class CrowdControls {
     fewer.addEventListener('click', () => this.stepDays(-1));
     more.addEventListener('click', () => this.stepDays(1));
 
-    this.element.append(this.mood.input.closest('.control')!, this.herd.input.closest('.control')!);
+    this.mysteryNote.className = 'control-subtitle mystery-note';
+    this.mysteryNote.textContent = text.mystery;
+    this.mysteryNote.hidden = true;
+    this.element.append(this.mysteryNote, this.mood.input.closest('.control')!, this.herd.input.closest('.control')!);
     if (options.days) this.element.append(days);
     if (handlers.reset) {
       const reset = document.createElement('button');
@@ -112,6 +116,16 @@ export class CrowdControls {
       slider.input.disabled = locked;
       slider.lock.hidden = !locked;
       slider.input.closest('.control')!.classList.toggle('locked', locked);
+    }
+  }
+
+  /** Mystery machine: Mood and Yesterday are hidden (their positions would give the secret away). */
+  setMystery(on: boolean): void {
+    this.mysteryNote.hidden = !on;
+    for (const slider of [this.mood, this.herd]) {
+      const control = slider.input.closest<HTMLElement>('.control')!;
+      control.hidden = on;
+      slider.input.disabled = on;
     }
   }
 

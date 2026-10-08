@@ -359,7 +359,7 @@ const en: Copy = {
         missed: (yesterday) => `There was a habit (${yesterday.toLowerCase()}), but your test didn't catch it.`,
         missedWrongWay: (yesterday) => `There was a habit (${yesterday.toLowerCase()}), but your rule bet the other way.`,
       },
-      chapterLines: ['Mystery machine: the crowd is secret. Drop stocks and read the pile, then go back to the test.'],
+      chapterLines: ['Mystery machine: the crowd is secret. Read it from the stocks here, then go back to the test.'],
       backToTest: 'Back to the test →',
     },
   },

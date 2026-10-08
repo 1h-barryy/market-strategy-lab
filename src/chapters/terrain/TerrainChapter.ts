@@ -109,6 +109,7 @@ export class TerrainChapter implements Chapter {
     this.dayControl = new DayControl(this.mapping!.days, (day) => this.chooseDay(day));
     hud.controls.replaceChildren(this.dayControl.element, this.crowd.element);
     this.crowd.sync(store.state.params);
+    this.crowd.setMystery(store.state.mystery !== null);
     this.dayControl.set(this.day);
 
     this.unsubscribe.push(
@@ -223,7 +224,8 @@ export class TerrainChapter implements Chapter {
   }
 
   private setCrowd(changes: Partial<WorldParams>): void {
-    const { params } = this.context.store.state;
+    const { params, mystery } = this.context.store.state;
+    if (mystery) return;
     if (changes.rho !== undefined && changes.rho !== params.rho) this.setIntro(noteTerrainMoved(this.intro, 'herd'));
     try {
       this.context.store.setParams(changes);
@@ -273,13 +275,16 @@ export class TerrainChapter implements Chapter {
   private renderIntro(): void {
     if (!this.active) return;
     const ready = canAdvanceTerrain(this.intro);
-    const key = `${this.intro.step}:${ready}`;
+    const mystery = this.context.store.state.mystery !== null;
+    const key = `${this.intro.step}:${ready}:${mystery}`;
     if (key === this.introRendered) return;
     this.introRendered = key;
     const text = copy();
     const back: HudAction = { label: text.terrain.intro.back, kind: 'link', onClick: () => this.context.navigate('board') };
+    const toTest: HudAction = { label: mystery ? text.test.mystery.backToTest : text.test.intro.continueToTest, kind: 'primary', onClick: () => this.context.navigate('test') };
     if (this.intro.step === 'free') {
-      this.context.hud.setIntro(text.terrain.intro.free.lines, [back, { label: text.intro.replay, kind: 'link', onClick: () => this.replayIntro() }]);
+      if (mystery) this.context.hud.setIntro(text.test.mystery.chapterLines, [toTest, back]);
+      else this.context.hud.setIntro(text.terrain.intro.free.lines, [toTest, back, { label: text.intro.replay, kind: 'link', onClick: () => this.replayIntro() }]);
       return;
     }
     const actions: HudAction[] = [];

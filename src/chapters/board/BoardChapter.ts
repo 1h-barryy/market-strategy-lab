@@ -146,6 +146,7 @@ export class BoardChapter implements Chapter {
     this.controls = new CrowdControls({ setParams: (changes) => this.playerSetParams(changes), reset: () => this.reset() }, { days: true });
     hud.controls.replaceChildren(this.controls.element);
     this.controls.sync(this.view.params);
+    this.controls.setMystery(this.context.store.state.mystery !== null);
     this.unsubscribe.push(
       input.on('pointerdown', this.onPointerDown),
       input.on('pointerup', this.onPointerUp),
@@ -259,12 +260,13 @@ export class BoardChapter implements Chapter {
     }
   }
 
-  /** Player-facing changes respect the intro's locks and count as "tried this control". */
+  /** Player-facing changes respect the intro's locks and a mystery machine, and count as "tried this control". */
   private playerSetParams(changes: Partial<WorldParams>): void {
     const locked = locks(this.intro.step);
+    const mystery = this.context.store.state.mystery !== null;
     const allowed = { ...changes };
-    if (locked.mood) delete allowed.tilt;
-    if (locked.herd) delete allowed.rho;
+    if (locked.mood || mystery) delete allowed.tilt;
+    if (locked.herd || mystery) delete allowed.rho;
     const { params } = this.context.store.state;
     let intro = this.intro;
     if (allowed.tilt !== undefined && allowed.tilt !== params.tilt) intro = noteMoved(intro, 'mood');
@@ -296,10 +298,19 @@ export class BoardChapter implements Chapter {
   private renderIntro(): void {
     if (!this.active) return;
     const ready = canAdvance(this.intro, this.balls?.landed ?? 0);
-    const key = `${this.intro.step}:${ready}`;
+    const mystery = this.context.store.state.mystery !== null;
+    const key = `${this.intro.step}:${ready}:${mystery}`;
     if (key === this.introRendered) return;
     this.introRendered = key;
     const text = copy().intro;
+    if (this.intro.step === 'free' && mystery) {
+      const test = copy().test;
+      this.context.hud.setIntro(test.mystery.chapterLines, [
+        { label: test.mystery.backToTest, kind: 'primary', onClick: () => this.context.navigate('test') },
+        { label: text.continueToTerrain, kind: 'link', onClick: () => this.context.navigate('terrain') },
+      ]);
+      return;
+    }
     if (this.intro.step === 'free') {
       this.context.hud.setIntro(text.free.lines, [
         { label: text.continueToTerrain, kind: 'primary', onClick: () => this.context.navigate('terrain') },
