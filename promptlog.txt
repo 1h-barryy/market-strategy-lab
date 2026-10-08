@@ -1,0 +1,544 @@
+# Prompt Log — Market Under Stress
+
+## Tools and models
+
+-Claude and claude code
+-ChatGPT and Codex
+
+
+## Claude
+
+
+You're helping me plan the next phase of a project. This is a read-only pass: do NOT create, modify, move, or delete any files, and don't install packages. Give me your analysis directly in chat.
+
+It's a quant/finance-themed interactive web experience, inspired by Bruno Simon's portfolio (physics, particles, play-driven interaction). I want the interactions to come from real math/physics models, not decoration. The theme: markets as a bet against human nature and a prediction under uncertainty.
+
+Planned structure, three chapters:
+1. Galton board / Brownian motion: randomness turning into distributions and price paths
+2. Terrain return surface: returns as a navigable landscape
+3. Diversification: combining assets and seeing risk change
+
+I also want some player-driven interaction, such as building a simple strategy and backtesting it, or something more playful. I have only just imported the first few assets, so the repo is early.
+
+## What to do
+1. Map the repo: folder structure, entry points, build tooling, dependencies (versions), and how it runs locally. If a dev/build command exists, you may run it to check for errors, but don't change anything to fix them; just report.
+2. Inventory the assets I imported: file types, sizes, poly/texture counts where you can tell, formats, and whether each one is web-ready. Flag anything too heavy, in the wrong format, missing textures, or with odd scale/orientation.
+3. Assess the current architecture: rendering stack, scene setup, any physics library, state management, and how data or math models are (or could be) wired in. Point out what's solid, what's fragile, and what will get in the way as three chapters grow.
+4. Design analysis. For each chapter, propose 1–2 concrete directions covering:
+   - the core interaction (what the player physically does)
+   - the underlying math model and where it would live in the code
+   - which imported assets fit, and what's still missing
+   - technical risk and rough effort (S/M/L)
+   Also propose how the chapters connect (navigation, transitions, a shared world vs. separate scenes) and where the strategy/backtest interaction could fit best.
+5. Recommend a structure: folder layout, module boundaries (rendering vs. simulation/math vs. UI vs. data), and an asset pipeline (compression, naming, loading strategy). Describe it only; don't create anything.
+6. List open decisions I need to make, each with options and tradeoffs. Don't make them for me.
+
+## Report format (in chat)
+- Summary (5–8 lines: current state + biggest risks)
+- Repo map
+- Asset inventory (table)
+- Architecture assessment
+- Chapter-by-chapter design directions
+- Recommended structure
+- Open decisions
+- Suggested next 3 steps, ordered
+
+Be specific and cite file paths. Where you're guessing, say so. If something in the repo contradicts the plan above, point it out.
+```
+
+
+
+
+
+Read DESIGN.md first. It is the single source of truth for this project (v0.3). TECH_SPEC.md and ASSET_BRIEF.md are from the previous design (v0.2); where they conflict with DESIGN.md, DESIGN.md wins. Do not follow their feature plans (MA crossover backtester, dashboard layout, etc.).
+
+Our goal right now is milestone P0 from DESIGN.md §11: the shared model plus a rough, playable Chapter 1 (The Board). The point of P0 is for me to understand the inertia parameter ρ by playing with it, so correctness of the math and clarity of what's on screen matter more than polish.
+
+## Step 0: Baseline (do this before any code changes)
+- The repo has no commits yet. Make an initial commit of the current state, including my new DESIGN.md, with message "Baseline: Phase 1 scaffold + design v0.3".
+- Do not push.
+
+## Step 1: Plan first, then wait for me
+Before writing code, give me a short plan:
+- which existing files you'll keep, change, move or delete
+- the new folder structure (follow DESIGN.md §9)
+- any packages you want to add and why (lil-gui as a dev panel is fine; no physics engine)
+- anything in DESIGN.md that's ambiguous or that you think is wrong
+Then stop and wait for my go-ahead.
+
+## Step 2: Model (src/model/, pure TypeScript, no Three.js imports)
+- random.ts: seeded RNG (e.g. mulberry32 or similar), deterministic given a seed.
+[EDIT: paste the rest of this prompt from your Claude Code history]
+```
+
+### 4. Fixing the drift/inertia bug (to Claude Code, after reviewing its plan)
+
+```
+Go ahead with the plan, with these changes:
+
+1. Fix the tilt/ρ interaction by re-parameterizing the model so drift and inertia are independent:
+   - π = 0.5 + tilt is the stationary (long-run) probability of an up-step
+   - P(+1 | prev +1) = π + ρ(1 − π)
+   - P(+1 | prev −1) = π(1 − ρ)
+   - first step drawn with probability π (the chain starts stationary, no transient)
+   - This keeps long-run drift at 2π − 1 for any ρ and lag-1 autocorrelation at exactly ρ.
+   - Ranges: tilt ∈ [−0.1, 0.1], ρ ∈ [−0.6, 0.9]. Both # Prompt Log — Market Under Stress
+
+## Tools and models
+
+-Claude and claude code
+-ChatGPT and Codex
+
+
+## Key prompts Claude
+
+
+You're helping me plan the next phase of a project. This is a read-only pass: do NOT create, modify, move, or delete any files, and don't install packages. Give me your analysis directly in chat.
+
+It's a quant/finance-themed interactive web experience, inspired by Bruno Simon's portfolio (physics, particles, play-driven interaction). I want the interactions to come from real math/physics models, not decoration. The theme: markets as a bet against human nature and a prediction under uncertainty.
+
+Planned structure, three chapters:
+1. Galton board / Brownian motion: randomness turning into distributions and price paths
+2. Terrain return surface: returns as a navigable landscape
+3. Diversification: combining assets and seeing risk change
+
+I also want some player-driven interaction, such as building a simple strategy and backtesting it, or something more playful. I have only just imported the first few assets, so the repo is early.
+
+## What to do
+1. Map the repo: folder structure, entry points, build tooling, dependencies (versions), and how it runs locally. If a dev/build command exists, you may run it to check for errors, but don't change anything to fix them; just report.
+2. Inventory the assets I imported: file types, sizes, poly/texture counts where you can tell, formats, and whether each one is web-ready. Flag anything too heavy, in the wrong format, missing textures, or with odd scale/orientation.
+3. Assess the current architecture: rendering stack, scene setup, any physics library, state management, and how data or math models are (or could be) wired in. Point out what's solid, what's fragile, and what will get in the way as three chapters grow.
+4. Design analysis. For each chapter, propose 1–2 concrete directions covering:
+   - the core interaction (what the player physically does)
+   - the underlying math model and where it would live in the code
+   - which imported assets fit, and what's still missing
+   - technical risk and rough effort (S/M/L)
+   Also propose how the chapters connect (navigation, transitions, a shared world vs. separate scenes) and where the strategy/backtest interaction could fit best.
+5. Recommend a structure: folder layout, module boundaries (rendering vs. simulation/math vs. UI vs. data), and an asset pipeline (compression, naming, loading strategy). Describe it only; don't create anything.
+6. List open decisions I need to make, each with options and tradeoffs. Don't make them for me.
+
+## Report format (in chat)
+- Summary (5–8 lines: current state + biggest risks)
+- Repo map
+- Asset inventory (table)
+- Architecture assessment
+- Chapter-by-chapter design directions
+- Recommended structure
+- Open decisions
+- Suggested next 3 steps, ordered
+
+Be specific and cite file paths. Where you're guessing, say so. If something in the repo contradicts the plan above, point it out.
+```
+
+
+
+
+
+Read DESIGN.md first. It is the single source of truth for this project (v0.3). TECH_SPEC.md and ASSET_BRIEF.md are from the previous design (v0.2); where they conflict with DESIGN.md, DESIGN.md wins. Do not follow their feature plans (MA crossover backtester, dashboard layout, etc.).
+
+Our goal right now is milestone P0 from DESIGN.md §11: the shared model plus a rough, playable Chapter 1 (The Board). The point of P0 is for me to understand the inertia parameter ρ by playing with it, so correctness of the math and clarity of what's on screen matter more than polish.
+
+## Step 0: Baseline (do this before any code changes)
+- The repo has no commits yet. Make an initial commit of the current state, including my new DESIGN.md, with message "Baseline: Phase 1 scaffold + design v0.3".
+- Do not push.
+
+## Step 1: Plan first, then wait for me
+Before writing code, give me a short plan:
+- which existing files you'll keep, change, move or delete
+- the new folder structure (follow DESIGN.md §9)
+- any packages you want to add and why (lil-gui as a dev panel is fine; no physics engine)
+- anything in DESIGN.md that's ambiguous or that you think is wrong
+Then stop and wait for my go-ahead.
+
+## Step 2: Model (src/model/, pure TypeScript, no Three.js imports)
+- random.ts: seeded RNG (e.g. mulberry32 or similar), deterministic given a seed.
+[EDIT: paste the rest of this prompt from your Claude Code history]
+```
+
+### 4. Fixing the drift/inertia bug (to Claude Code, after reviewing its plan)
+
+```
+Go ahead with the plan, with these changes:
+
+1. Fix the tilt/ρ interaction by re-parameterizing the model so drift and inertia are independent:
+   - π = 0.5 + tilt is the stationary (long-run) probability of an up-step
+   - P(+1 | prev +1) = π + ρ(1 − π)
+   - P(+1 | prev −1) = π(1 − ρ)
+   - first step drawn with probability π (the chain starts stationary, no transient)
+   - This keeps long-run drift at 2π − 1 for any ρ and lag-1 autocorrelation at exactly ρ.
+   - Ranges: tilt ∈ [−0.1, 0.1], ρ ∈ [−0.6, 0.9]. Both transition probabilities stay in [0, 1] across this whole range, so remove the clamp. Assert valid probabilities in process.ts and test the corners.
+   - The ρ = 0 overlay is the binomial with p = π.
+   - HUD: show theoretical mean and std of the final position next to the measured ones.
+   - Update tests: autocorrelation ≈ ρ should now hold with tilt ≠ 0 too; add a test that mean step ≈ 2π − 1 for several ρ.
+
+2. Update DESIGN.md directly to match:
+   - §3.1: new formulas, parameter ranges, and a short explanation of why drift and inertia are parameterized separately
+   - §3.3: make sure the VR description is still correct under the new model
+   - §5 ghost and §6.3 luck baseline: "same π (same drift), ρ = 0"
+   - §10: replace the base-path constraint with the actual repo name
+   - Also fold in the P0 decisions you proposed (fixed board geometry with σ shown on price scale and bin labels; path length = row count in P0; batch precomputed with per-path seeds from (seed, pathIndex); your VR estimator) where they belong.
+   - Bump the version to 0.3.1 with a one-line changelog at the top. Show me a summary of what changed.
+
+3. Delete TECH_SPEC.md and ASSET_BRIEF.md (they stay in git history). Remove any references to them or to the missing archive/ and docs/ files.
+
+4. vite.config.ts: change base to '/2025-10-07_market-strategy-lab/' (I'm keeping the repo name), and split Three.js into its own chunk.
+
+5. README: factual lines only, as you proposed.
+
+6. Leave the baseline commit as is.
+
+Proceed step by step with commits (don't push), and send the final report when P0 is done.
+
+
+
+Same process as P0.5: update DESIGN.md first, then show me every player-facing string and the plan, wait for my approval, then implement.
+
+Lesson from P0 → P0.5: design for legibility from the start. Chapter 2 must be readable without numbers, in the same vocabulary as Chapter 1 (stocks, the crowd, Mood, Yesterday, the outline). Exact values live only in the debug overlay (D).
+
+## Design decisions (put these in DESIGN.md, bump to v0.5)
+
+1. Path length (resolves open question 1): every stock's full path is 250 days (one trading year). The shared batch (2,000 stocks, per-path seeds from (seed, pathIndex) as now) is generated at 250 steps. The board shows only the first n days (n = Days, 8–24). Chapter 3 will use the same batch length. Check performance of regenerating 2,000 × 250 on every crowd change; throttle or debounce while a slider is being dragged if needed.
+
+2. The terrain lives physically behind the board. One continuous scene, not a scene switch:
+   - The terrain's left-right axis is the same % change axis as the board's bins, aligned exactly in world space.
+   - Time runs away from the viewer (into depth), day 0 at the board, day 250 at the far end.
+   - Height = how many stocks are at that % change on that day (density).
+   - The slice at day n lines up with the board's pile: same shape, same place.
+   - Entering Chapter 2: the camera moves from the front view to a 3/4 elevated view so the player discovers the terrain behind the board. Leaving goes back. Keep the move simple and smooth; no art pass yet.
+   - Decide and document how far the % axis extends (250 days spreads much wider than n days); the board's bins may need to sit inside a wider terrain, or the axis may use a scale that keeps both readable. Propose an option.
+
+3. The outline in 3D: a faint ghost surface for "if the crowd ignored yesterday" (same Mood, Yesterday = neutral), the same reference Chapter 1 uses. The gap between terrain and ghost is the crowd's habit, now over a whole year.
+
+4. Player vocabulary for Chapter 2 (add to §1.2):
+   - Chapter name: The Terrain. One-line idea: "The pile was one day. This is the whole year."
+   - The terrain = "where stocks are, day after day"
+   - Height = "how many stocks are there"
+   - The valley opening up = "the future getting less certain"
+   - Ghost surface = "if the crowd ignored yesterday" (same wording as Chapter 1)
+   - The underlying fact (variance ratio): "Chases it" makes the valley open faster than the ghost; "Turns against it" makes it open slower. Captions must say this in plain words and only once enough data supports it.
+
+
+
+## ChatGPT
+
+
+I want something interactive, fun, and visually interesting around stock trading, automated trading, quant, or hedge funds. I like the exploration, 3D, physics, and effects in Bruno Simon’s website, but I don't want to simply copy the car idea. I want finance and quant to actually be the core of the interaction.
+
+
+
+I like the idea of particles entering the market and behaving almost like a Galton board. Each ball could represent a stock, and the way it moves through the machine could represent what happens over time. I don't want this to feel like an educational game, but it should still have a clear purpose.
+
+
+
+I want the main question to be: if I find a trading rule that works on this market, is it actually an edge, or did I just overfit the data? The player should be able to build a rule, see the structure of the market, and then test that rule on stocks they have not seen before.
+
+
+
+# Art Sandbox 01 — Luminous Probability Pavilion
+
+## Context
+
+Create a standalone interactive 3D art prototype for **Market Under Stress**, a quantitative visualization experience.
+
+The current task is solely about art production: 3D geometry, environmental composition, materials, lighting, luminous effects, and tactile visual interaction.
+
+The selected art direction combines:
+
+- **Luminous Art Installation (primary)**
+- **Floating Kinetic Sculpture (secondary)**
+- **Playful Low-Poly Spatial World (environment)**
+
+Do not recreate an arcade cabinet or traditional pinball machine.
+
+## 1. Sandbox isolation
+
+The workspace selected in Codex Desktop is the sandbox.
+
+Verify the working directory before executing any commands.
+
+Create all necessary files inside this workspace only.
+
+Do not access or modify the existing Market Under Stress application repository. Do not set up merging, synchronization, or shared dependencies with it.
+
+Do not initialize a remote Git repository or deploy this sandbox.
+
+## 2. Objective
+
+Build a locally runnable Three.js art prototype that can be visually inspected from several camera angles.
+
+Prioritize making an attractive, distinctive, spatial composition rather than a technical demo.
+
+Use Vite, TypeScript, and Three.js. Keep dependencies minimal.
+
+## 3. Main installation
+
+Create a large, freestanding **Luminous Probability Pavilion**.
+
+The installation should have:
+
+- An elegant open architectural frame
+- Curved or gently asymmetric low-poly structural elements
+- Visible depth, thickness, and soft bevels
+- Suspended structural rings and floating sculptural elements
+- A recognizable staggered peg field
+- A luminous emitter above the peg field
+- A sculptural result collection area below
+- Two integrated abstract physical controls
+
+For this visual prototype, use 16 rows of pegs and 17 collection bins.
+
+The frame must not obstruct the mathematical visual area.
+
+Avoid arcade consoles, enclosed cabinets, industrial machinery, dashboard screens, and casino imagery.
+
+Aim for a visually distinctive object with a strong silhouette from both front and three-quarter views.
+
+## 4. Spatial environment
+
+Place the installation in a small stylized low-poly world.
+
+Create a broad sculptural ground plane with soft variation, a carefully shaped raised platform, and a sense of depth.
+
+The environment should extend behind and around the pavilion.
+
+Add subtle floating architecture or abstract structures in the background, but do not clutter the primary composition.
+
+Leave sufficient space behind the pavilion for a future mathematical density terrain.
+
+A simple abstract background silhouette is acceptable. Do not build the actual terrain or its mathematical surface.
+
+The sculpture should feel like part of a physical world, not an isolated model inside a rectangular UI card.
+
+## 5. Material design
+
+Create a centralized material palette.
+
+Use these starting colors:
+
+| Role | Color |
+|---|---|
+| Dusk Plum environment | #29233B |
+| Warm Ceramic structure | #E9DCCD |
+| Sage structural accent | #8CA8A0 |
+| Upward movement | #FFAD78 |
+| Downward movement | #6DCEEF |
+| Probability density | #FFF5E8 |
+| Selected object | #C5ACFF |
+
+Physical structures should have matte or ceramic-like materials, with moderately high roughness and low metallic values.
+
+Use color blocking to give the world personality.
+
+Avoid overly realistic worn textures, chrome surfaces, holographic panels, and neon outlines.
+
+**Matter is matte. Data emits light.**
+
+## 6. Luminous effects
+
+Create subtle but attractive light-emitting elements:
+
+- A glowing emission core
+- A few glowing demonstration particles
+- Soft directional trails
+- Small highlights at meaningful contact points
+- A restrained luminous result area
+
+Use bloom through the Three.js postprocessing system if appropriate.
+
+Ensure bloom can be enabled or disabled for comparison.
+
+Bloom should primarily emphasize luminous elements, not the entire architectural structure.
+
+Preserve the difference between matte geometry and bright data.
+
+## 7. Lighting presets
+
+Implement two switchable lighting configurations.
+
+### Soft Gallery
+
+- Clear visibility of the sculpture
+- Soft warm key lighting
+- Gentle cool fill lighting
+- Readable low-poly forms
+- Subtle shadows and material definition
+
+### Luminous Dusk
+
+- Atmospheric plum background
+- More pronounced luminous details
+- Gentle rim lighting
+- Clearly visible trajectories
+- Stronger contrast without crushing the structural details
+
+An optional 1K Studio Small 08 HDRI may be loaded from `public/env/` if supplied.
+
+If it is absent, use procedural lighting or Three.js RoomEnvironment. Do not make external asset downloads a prerequisite for running the sandbox.
+
+## 8. Sculptural controls
+
+Create two distinctive physical controls integrated into the installation.
+
+### Mood
+
+A rotating arc or sculptural balance dial.
+
+It should have a clear center position and respond visibly when manipulated.
+
+### Yesterday
+
+A curved sliding rail or suspended kinetic ring expressing inertia.
+
+It should feel different from Mood.
+
+These are art interaction previews only.
+
+Their positions can change visual pose and lighting, but they must not generate financial values.
+
+Provide basic pointer interaction and a simple accessible keyboard or UI alternative.
+
+Do not use arcade push buttons.
+
+## 9. Motion preview
+
+Create several deterministic demonstration ball trajectories moving through the peg field.
+
+Use fixed predefined direction sequences.
+
+These are visual placeholders, not actual market or Galton simulation results.
+
+- Warm means an upward/right step
+- Cool means a downward/left step
+- Trails should be short and soft
+- Movement should feel light, responsive, and tactile
+- Use subtle easing and bounce at the pegs
+
+Add play, pause, and restart controls for previewing the animation.
+
+Do not display simulated returns or invent financial statistics.
+
+## 10. Camera system
+
+Provide three camera presets:
+
+1. **Front** — tests readability of the peg layout and collection bins
+2. **Three-quarter** — default beauty composition showing sculptural depth
+3. **Elevated / Behind** — tests the pavilion and the spatial connection toward the rear environment
+
+Allow restrained orbit and zoom interaction.
+
+Camera movement between presets should be smooth.
+
+Do not implement driving, character movement, or free-roam controls.
+
+## 11. Minimal art-review interface
+
+Include a small nonintrusive interface for:
+
+- Camera preset
+- Lighting preset
+- Bloom toggle
+- Animation play/pause
+- Animation restart
+- Reset camera
+
+This UI is only for art review. It is not the final Market Under Stress HUD.
+
+The 3D canvas should occupy the primary viewport.
+
+## 12. Suggested project architecture
+
+Organize the sandbox approximately as follows:
+
+```text
+src/
+├── main.ts
+├── scene/
+│   ├── World.ts
+│   ├── CameraRig.ts
+│   ├── Lighting.ts
+│   └── Environment.ts
+├── objects/
+│   ├── Pavilion.ts
+│   ├── PegField.ts
+│   ├── Emitter.ts
+│   ├── CollectionBins.ts
+│   ├── MoodControl.ts
+│   └── YesterdayControl.ts
+├── effects/
+│   ├── DemoParticles.ts
+│   ├── Trails.ts
+│   └── PostProcessing.ts
+├── style/
+│   └── palette.ts
+└── ui/
+    ├── ReviewControls.ts
+    └── style.css
+
+public/
+└── env/
+```
+
+This is suggested organization, not a rigid requirement. Prefer modular, understandable code.
+
+## 13. Quality requirements
+
+The first view should have a carefully composed visual hierarchy.
+
+Priorities:
+
+1. Distinctive sculptural silhouette
+2. Beautiful material contrast
+3. Controlled luminous effects
+4. Spatial depth and lighting
+5. Clear peg and bin readability
+6. Responsive tactile controls
+7. Smooth camera and animation
+
+Keep the geometry reasonably lightweight.
+
+Resize the renderer correctly, support reduced-motion preferences, and avoid unnecessary per-frame object creation.
+
+## 14. Scope restrictions
+
+Do not implement any quantitative financial logic.
+
+Do not build Chapters 2 or 3.
+
+Do not modify the main project.
+
+Do not design a financial dashboard.
+
+Do not use random stock values, fake trading metrics, or arbitrary mathematical claims.
+
+Do not add large external models or high-resolution textures.
+
+## 15. Verification and delivery
+
+Complete the standalone art sandbox.
+
+Ensure:
+
+- `npm install` succeeds
+- `npm run dev` works
+- `npm run build` succeeds
+- all camera modes function
+- both lighting modes function
+- bloom can be toggled
+- demonstration animation plays, pauses, and restarts
+- interactive controls respond visibly
+- the scene renders without obvious clipping or missing assets
+
+Inspect the rendered scene in a browser if the environment allows it.
+
+At completion, provide a concise report of the visual components created, materials used, lighting implementation, current limitations, and how to open the local preview.
+
+Stop after completing this standalone art prototype.
+
+
+
+## One place AI got it wrong
+
+One major issue was readability. I initially treated it as final polish, but playtesting showed that even though the math worked, the experience was hard to understand. This makes me to add another step before implemention, where I added simpler explanations, Mood/Herd controls, and captions. It was a design problem rather than a coding bug.
+
+Another issue was AI design drift. An earlier AI session turned the project into a moving-average backtesting dashboard, losing my original three-chapter concept. I rewrote DESIGN.md and removed outdated documents to keep future AI development aligned with my vision.
